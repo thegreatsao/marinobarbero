@@ -1,0 +1,11 @@
+# Build output — regenerate with: node build.js
+dist/
+marino-barbero-dist.zip
+
+# One-time bootstrap helper — not part of the project
+push-to-github.sh
+
+# OS / editor noise
+.DS_Store
+node_modules/
+*.log

@@ -1,0 +1,12 @@
+{
+  "name": "marino-barbero-site",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Marino Barbero — The Barber Shop. Bilingual (EL/EN) barbershop site for Kato Paphos. Static generator, deploys to Netlify.",
+  "scripts": {
+    "build": "node build.js",
+    "serve": "node build.js && cd dist && python3 -m http.server 4120",
+    "dev": "node build.js && cd dist && python3 -m http.server 4120"
+  },
+  "license": "UNLICENSED"
+}

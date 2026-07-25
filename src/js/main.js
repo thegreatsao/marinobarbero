@@ -1,0 +1,222 @@
+/* =========================================================================
+   Marino Barbero — motion layer
+   Native scroll + IntersectionObserver reveals, GSAP hero + parallax,
+   marquee, magnetic buttons, custom cursor, mobile menu.
+   GSAP + ScrollTrigger loaded from CDN in <head>. Degrades gracefully.
+   ========================================================================= */
+(function () {
+  "use strict";
+  const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const hasGSAP = typeof window.gsap !== "undefined";
+  const isDesktop = window.matchMedia("(hover: hover) and (pointer: fine)").matches;
+
+  if ("scrollRestoration" in history) history.scrollRestoration = "manual";
+
+  /* ---------- Nav: solid background after scroll ---------- */
+  const nav = document.querySelector(".nav");
+  const onScroll = () => { if (nav) nav.classList.toggle("scrolled", window.scrollY > 40); };
+  onScroll();
+  window.addEventListener("scroll", onScroll, { passive: true });
+
+  /* ---------- Anchor links (also close mobile menu) ---------- */
+  document.querySelectorAll('a[href^="#"]').forEach((a) => {
+    a.addEventListener("click", (e) => {
+      const id = a.getAttribute("href");
+      if (id.length < 2) return;
+      const el = document.querySelector(id);
+      if (!el) return;
+      e.preventDefault();
+      document.body.classList.remove("menu-open");
+      el.scrollIntoView({ behavior: reduce ? "auto" : "smooth" });
+    });
+  });
+
+  /* ---------- Reveal on scroll ---------- */
+  const revealEls = document.querySelectorAll(".reveal, [data-stagger], .img-reveal");
+  if (reduce) {
+    revealEls.forEach((el) => el.classList.add("in"));
+  } else {
+    const io = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (!entry.isIntersecting) return;
+          const el = entry.target;
+          if (el.hasAttribute("data-stagger")) {
+            [...el.children].forEach((child, i) => { child.style.transitionDelay = i * 90 + "ms"; });
+          }
+          el.classList.add("in");
+          io.unobserve(el);
+        });
+      },
+      { threshold: 0.16, rootMargin: "0px 0px -8% 0px" }
+    );
+    revealEls.forEach((el) => io.observe(el));
+  }
+
+  /* ---------- Hero scene + parallax ---------- */
+  if (hasGSAP && !reduce) {
+    const { gsap } = window;
+    if (window.ScrollTrigger) gsap.registerPlugin(window.ScrollTrigger);
+
+    // Intro reveal — only when the tab is visible at load. A background tab (or a
+    // preview with a throttled rAF ticker) freezes GSAP mid-tween; guarding here
+    // means the hero content is never left stuck at opacity:0 (CSS shows it by default).
+    if (!document.hidden) {
+      const lines = document.querySelectorAll(".hero__title .line span");
+      if (lines.length) {
+        gsap.set(lines, { yPercent: 115 });
+        gsap.to(lines, { yPercent: 0, duration: 1.2, stagger: 0.12, ease: "expo.out", delay: 0.2 });
+      }
+      gsap.from(".hero .eyebrow, .hero__sub, .hero__actions", {
+        y: 26, opacity: 0, duration: 1, stagger: 0.12, ease: "power3.out", delay: 0.55,
+      });
+    }
+
+    if (window.ScrollTrigger) {
+      const heroImg = document.querySelector(".hero__media img");
+      if (heroImg) {
+        gsap.to(heroImg, {
+          yPercent: 12, ease: "none",
+          scrollTrigger: { trigger: ".hero", start: "top top", end: "bottom top", scrub: true },
+        });
+      }
+      document.querySelectorAll("[data-parallax]").forEach((el) => {
+        const amt = parseFloat(el.getAttribute("data-parallax")) || 8;
+        gsap.to(el, {
+          yPercent: -amt, ease: "none",
+          scrollTrigger: { trigger: el, start: "top bottom", end: "bottom top", scrub: true },
+        });
+      });
+    }
+  }
+
+  /* ---------- Marquee (seamless loop) ---------- */
+  document.querySelectorAll(".marquee").forEach((m) => {
+    const track = m.querySelector(".marquee__track");
+    if (!track) return;
+    track.innerHTML += track.innerHTML;
+    if (reduce) return;
+    let x = 0;
+    const speed = 0.4;
+    let half = track.scrollWidth / 2;
+    let paused = false;
+    m.addEventListener("mouseenter", () => (paused = true));
+    m.addEventListener("mouseleave", () => (paused = false));
+    const tick = () => {
+      if (!paused) {
+        x -= speed;
+        if (-x >= half) x = 0;
+        track.style.transform = `translate3d(${x}px,0,0)`;
+      }
+      requestAnimationFrame(tick);
+    };
+    window.addEventListener("resize", () => (half = track.scrollWidth / 2));
+    requestAnimationFrame(tick);
+  });
+
+  /* ---------- Magnetic buttons (desktop) ---------- */
+  if (isDesktop && !reduce && hasGSAP) {
+    const { gsap } = window;
+    document.querySelectorAll("[data-magnetic]").forEach((btn) => {
+      btn.addEventListener("mousemove", (e) => {
+        const r = btn.getBoundingClientRect();
+        const mx = e.clientX - (r.left + r.width / 2);
+        const my = e.clientY - (r.top + r.height / 2);
+        gsap.to(btn, { x: mx * 0.3, y: my * 0.4, duration: 0.5, ease: "power3.out" });
+      });
+      btn.addEventListener("mouseleave", () => {
+        gsap.to(btn, { x: 0, y: 0, duration: 0.6, ease: "elastic.out(1, 0.4)" });
+      });
+    });
+  }
+
+  /* ---------- Custom cursor (desktop) ---------- */
+  if (isDesktop && !reduce) {
+    const ring = document.querySelector(".cursor");
+    const dot = document.querySelector(".cursor-dot");
+    if (ring && dot) {
+      let rx = 0, ry = 0, dx = 0, dy = 0;
+      window.addEventListener("mousemove", (e) => {
+        dx = e.clientX; dy = e.clientY;
+        dot.style.transform = `translate(${dx}px, ${dy}px) translate(-50%, -50%)`;
+      });
+      const follow = () => {
+        rx += (dx - rx) * 0.18; ry += (dy - ry) * 0.18;
+        ring.style.transform = `translate(${rx}px, ${ry}px) translate(-50%, -50%)`;
+        requestAnimationFrame(follow);
+      };
+      follow();
+      document.querySelectorAll("a, button, [data-magnetic], .gal__cell").forEach((el) => {
+        el.addEventListener("mouseenter", () => document.body.classList.add("cursor-active"));
+        el.addEventListener("mouseleave", () => document.body.classList.remove("cursor-active"));
+      });
+    }
+  }
+
+  /* ---------- Mobile menu toggle ---------- */
+  const burger = document.querySelector(".nav__burger");
+  if (burger) burger.addEventListener("click", () => document.body.classList.toggle("menu-open"));
+
+  /* ---------- Refresh ScrollTrigger after full load ---------- */
+  window.addEventListener("load", () => {
+    if (hasGSAP && window.ScrollTrigger) {
+      if (window.ScrollTrigger.clearScrollMemory) window.ScrollTrigger.clearScrollMemory("manual");
+      window.scrollTo(0, 0);
+      requestAnimationFrame(() => requestAnimationFrame(() => window.ScrollTrigger.refresh()));
+    }
+  });
+  let _rt;
+  window.addEventListener("resize", () => {
+    clearTimeout(_rt);
+    _rt = setTimeout(() => { if (hasGSAP && window.ScrollTrigger) window.ScrollTrigger.refresh(); }, 200);
+  });
+
+  /* ---------- Booking panel (floating icon → slide-in overlay → Fresha) ---------- */
+  const bkOpen = document.getElementById("bk-open");
+  const bkPanel = document.getElementById("bk-panel");
+  if (bkOpen && bkPanel) {
+    const open = () => {
+      document.body.classList.add("bk-on");
+      bkPanel.setAttribute("aria-hidden", "false");
+      bkOpen.setAttribute("aria-expanded", "true");
+      const first = bkPanel.querySelector(".bk-close");
+      if (first) first.focus();
+    };
+    const close = () => {
+      document.body.classList.remove("bk-on");
+      bkPanel.setAttribute("aria-hidden", "true");
+      bkOpen.setAttribute("aria-expanded", "false");
+      bkOpen.focus();
+    };
+    bkOpen.addEventListener("click", open);
+    document.querySelectorAll("[data-bk-close]").forEach((el) => el.addEventListener("click", close));
+    document.addEventListener("keydown", (e) => { if (e.key === "Escape" && document.body.classList.contains("bk-on")) close(); });
+  }
+
+  /* ---------- Cookie consent (Google Consent Mode v2) ---------- */
+  // gtag defaults analytics_storage to "denied" (set inline in <head>). Show the banner
+  // only when the visitor hasn't chosen yet; "Accept" flips consent to granted, "Decline"
+  // keeps it denied. Choice is persisted so the banner stays dismissed on return visits.
+  const consent = document.getElementById("consent");
+  if (consent) {
+    const KEY = "mb-consent";
+    let stored = null;
+    try { stored = localStorage.getItem(KEY); } catch (e) {}
+    if (stored !== "granted" && stored !== "denied") consent.hidden = false;
+    const decide = (val) => {
+      try { localStorage.setItem(KEY, val); } catch (e) {}
+      if (val === "granted" && typeof window.gtag === "function") {
+        window.gtag("consent", "update", { analytics_storage: "granted" });
+      }
+      consent.hidden = true;
+    };
+    const accept = consent.querySelector("[data-consent-accept]");
+    const decline = consent.querySelector("[data-consent-decline]");
+    if (accept) accept.addEventListener("click", () => decide("granted"));
+    if (decline) decline.addEventListener("click", () => decide("denied"));
+  }
+
+  /* ---------- Footer year ---------- */
+  const y = document.querySelector("[data-year]");
+  if (y) y.textContent = new Date().getFullYear();
+})();

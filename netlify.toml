@@ -1,0 +1,13 @@
+# Netlify configuration — Marino Barbero
+[build]
+  command = "node build.js"
+  publish = "dist"
+
+[build.environment]
+  NODE_VERSION = "20"
+
+# Pretty URL: serve /en/ index.html on the trailing-slash path
+[[redirects]]
+  from = "/en"
+  to = "/en/"
+  status = 301
