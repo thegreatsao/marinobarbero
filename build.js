@@ -571,8 +571,8 @@ function aboutHtml(lang) {
         <h2 class="reveal">${esc(t.heading)}</h2>
       </div>
       <figure class="about__media img-reveal">
-        <img src="${img("shop-fade-928.jpg")}"
-             srcset="${img("shop-fade-560.jpg")} 560w, ${img("shop-fade-928.jpg")} 928w"
+        <img src="${img("shop-fade-928.webp")}"
+             srcset="${img("shop-fade-560.webp")} 560w, ${img("shop-fade-928.webp")} 928w"
              sizes="(min-width: 60em) 30vw, 92vw"
              alt="${esc(t.mediaAlt)}" width="928" height="1152" loading="lazy" decoding="async">
       </figure>

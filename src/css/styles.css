@@ -807,6 +807,12 @@ button.svc .svc__ext { display: none; }
     align-self: center;
     justify-self: end;
     margin-bottom: 0;
+    /* The explicit width matters: with justify-self:end and width:auto the figure
+       is shrink-to-fit, and its only child is an <img width:100%> — a cycle the
+       browser resolves to zero. A 0x0 box never enters the viewport, so a lazy
+       image inside it never loads, so the figure never gains an intrinsic size.
+       It only looked fine while a previously-cached file was supplying one. */
+    width: 100%;
     max-width: var(--portrait-max);
   }
   /* The measures stay; ranging right just moves them to the column's right edge. */
