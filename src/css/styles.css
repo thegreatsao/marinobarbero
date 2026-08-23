@@ -75,11 +75,25 @@
   --cream: #f3ede3;
   --cream-2: #f6efe2;
   --ink: #100f0d;
-  --ink-2: #17150f;
-  --panel: #1b1813;
-  --line: rgba(201, 162, 75, 0.22);
+  /* The alternating-section and raised-surface steps, widened in the 2026-08
+     contrast pass. They were #17150f and #1b1813, which put only ΔL* 2.5 and 1.6
+     between the three surfaces — a 1.05:1 contrast between a section and the page
+     behind it, which is to say none. Every section, card and panel read as one
+     flat dark field with nothing for the eye to hold. ΔL* is now 5.1 and 4.1,
+     which is a step you can actually see in a dark interface, and the text floors
+     still hold: on --ink-2 cream is 14.9:1, stone 8.2:1, gold 7.2:1.
+     --ink itself is unchanged on purpose — every scrim and overlay gradient in
+     this file fades to rgba(16,15,13,…), and moving the base would put a seam at
+     the end of each one. */
+  --ink-2: #1d1a14;
+  --panel: #272219;
+  /* .22 left card and panel edges at ΔL* 12.7 from the page — technically there,
+     practically not. */
+  --line: rgba(201, 162, 75, 0.3);
   --stone: #b9b1a6;
-  --stone-dim: #8b8378;
+  /* Was #8b8378, which sat at 4.64:1 on the lifted --ink-2 — over the 4.5 floor
+     but with nothing to spare. 5.17:1 on --ink-2, 4.71:1 on --panel. */
+  --stone-dim: #948b7f;
 
   /* --serif and --r are the design system's published tokens and are kept whole
      even though this build reaches Georgia through --display's fallback chain and
@@ -205,6 +219,17 @@ section[id] { scroll-margin-top: calc(var(--nav-h) + 8px); }
     -webkit-background-clip: text;
     background-clip: text;
     color: transparent;
+    /* The gradient is painted inside the element's own box and only then clipped
+       to the letters, so whatever the box does not cover is simply not drawn.
+       Display type here is set at line-heights well under 1 — and where it is a
+       flex item it is blockified, so the box really is that short — which shaved
+       the bottom off "5.0". The padding gives the gradient room; the negative
+       margin hands the space straight back to the layout, so nothing moves.
+       0.3em clears the tightest setting on the page (line-height 0.82 on the
+       rating, where the font's own box is 1.338em), so the box always covers the
+       letters whatever the line-height does. */
+    padding-block: 0.3em;
+    margin-block: -0.3em;
   }
 }
 
@@ -287,31 +312,43 @@ section[id] { scroll-margin-top: calc(var(--nav-h) + 8px); }
   padding-inline: var(--gutter);
   background: transparent;
   border-bottom: 1px solid transparent;
+  transition: background 0.3s var(--ease), border-color 0.3s var(--ease);
 }
-/* Set as type, not as a caps label: the last word in italic on the metal
-   gradient. Same treatment in the footer — see .footer__name. */
-.nav__logo {
-  display: inline-flex;
-  flex-direction: column;
-  justify-content: center;
-  min-height: var(--nav-h);
+/* Bare over the hero photograph, panelled once there is content behind it.
+   body.bar-on already means "the hero has gone", so this needs no scroll handler
+   of its own. */
+body.bar-on .nav {
+  background: rgba(16, 15, 13, 0.94);
+  border-bottom-color: var(--line);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+}
+@media (prefers-reduced-motion: reduce) { .nav { transition: none; } }
+/* The brand block: hexagon on the left, the wordmark stacked beside it with the
+   strapline under it, the text centred against the mark. One set of rules for the
+   header and the footer, from one piece of markup, so the two cannot drift.
+   Set as type, not as a caps label: the last word is italic on the metal
+   gradient. */
+.nav__logo { display: inline-flex; align-items: center; gap: 0.625rem; min-height: var(--nav-h); }
+.brand { display: grid; }
+.brand__name {
+  display: block;
   font: 500 1.0625rem/0.92 var(--display);
   letter-spacing: -0.015em;
   white-space: nowrap;
 }
-.nav__logo span, .nav__logo i,
-.footer__name span, .footer__name i { display: block; }
-.nav__logo i, .footer__name i { font-style: italic; }
-@supports (background-clip: text) or (-webkit-background-clip: text) {
-  .nav__logo i, .footer__name i {
-    background: var(--metal);
-    -webkit-background-clip: text;
-    background-clip: text;
-    color: transparent;
-  }
-}
-@supports not ((background-clip: text) or (-webkit-background-clip: text)) {
-  .nav__logo i, .footer__name i { color: var(--gold-soft); }
+.brand__name span, .brand__name i { display: block; }
+.brand__name i { font-style: italic; }
+/* The strapline needs vertical room the 52px phone bar does not have; the footer
+   turns it back on for itself below. */
+.nav__logo .brand__tag { display: none; }
+.brand__tag {
+  margin-top: 0.25rem;
+  font-family: var(--sans);
+  font-size: 0.78rem;
+  letter-spacing: 0.1em;
+  color: var(--stone-dim);
+  white-space: nowrap;
 }
 .nav__links { display: none; }
 .nav__right { display: flex; align-items: center; gap: 1.75rem; }
@@ -342,7 +379,9 @@ section[id] { scroll-margin-top: calc(var(--nav-h) + 8px); }
     -webkit-backdrop-filter: blur(6px);
     backdrop-filter: blur(6px);
   }
-  .nav__logo { font-size: 1.375rem; }
+  /* 70px of bar is room for the strapline as well. */
+  .nav__logo .brand__name { font-size: 1.375rem; }
+  .nav__logo .brand__tag { display: block; }
   .nav__links {
     display: flex;
     gap: 1.75rem;
@@ -378,7 +417,10 @@ section[id] { scroll-margin-top: calc(var(--nav-h) + 8px); }
    behind the light. The fold answers what / where / proof / price / action
    before any scroll.
    ========================================================================= */
-.hero { position: relative; isolation: isolate; min-height: 100svh; display: flex; flex-direction: column; overflow: clip; }
+/* The negative margin lifts the hero under the sticky header, so the photograph
+   still runs edge to edge behind it while the header itself stays pinned for the
+   whole page. */
+.hero { position: relative; isolation: isolate; min-height: 100svh; margin-top: calc(var(--nav-h) * -1); display: flex; flex-direction: column; overflow: clip; }
 .hero__media { position: absolute; inset: 0; z-index: -3; }
 .hero__media img {
   width: 100%;
@@ -387,7 +429,9 @@ section[id] { scroll-margin-top: calc(var(--nav-h) + 8px); }
   object-position: 52% 38%;
   /* Gold-graded duotone: mixed lighting between shoots stops mattering, and the
      photograph joins the palette instead of sitting next to it. */
-  filter: grayscale(1) sepia(0.42) saturate(1.75) hue-rotate(-8deg) brightness(0.6);
+  /* The scrim carries legibility now (it ramps to 80% by 42% down), so the
+     photograph itself no longer has to be pushed this far into the dark. */
+  filter: grayscale(1) sepia(0.42) saturate(1.75) hue-rotate(-8deg) brightness(0.68);
 }
 /* Two layers, in this order: the light pool, then the legibility scrim. */
 .hero__pool { position: absolute; inset: 0; z-index: -2; background: radial-gradient(60% 40% at 70% 18%, rgba(201, 162, 75, 0.28), transparent 70%); }
@@ -523,7 +567,7 @@ body.consent-on .hero__inner { padding-bottom: calc(var(--bar-h) + 12rem); }
 .fade__svc { color: var(--gold-soft); }
 .fade__specs { display: none; }
 .fade__media { position: relative; border-radius: var(--r-card); overflow: hidden; aspect-ratio: 4 / 5; }
-.fade__media img { width: 100%; height: 100%; object-fit: cover; filter: grayscale(1) sepia(0.5) saturate(1.75) hue-rotate(-8deg) brightness(0.88); }
+.fade__media img { width: 100%; height: 100%; object-fit: cover; filter: grayscale(1) sepia(0.5) saturate(1.75) hue-rotate(-8deg) brightness(0.97); }
 .fade__media::after { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, transparent 55%, rgba(16, 15, 13, 0.9)); }
 .fade__cap {
   position: absolute;
@@ -578,7 +622,7 @@ body.consent-on .hero__inner { padding-bottom: calc(var(--bar-h) + 12rem); }
   width: 100%;
   min-height: 60px;
   padding: 0.75rem 0.875rem;
-  border: 1px solid rgba(201, 162, 75, 0.18);
+  border: 1px solid rgba(201, 162, 75, 0.28);
   border-radius: 10px;
   background: var(--ink-2);
   color: inherit;
@@ -588,7 +632,7 @@ body.consent-on .hero__inner { padding-bottom: calc(var(--bar-h) + 12rem); }
   /* 180ms, functional feedback, no scale. This is a utility action. */
   transition: border-color 0.18s var(--ease), background 0.18s var(--ease);
 }
-.svc:hover { border-color: rgba(201, 162, 75, 0.4); background: var(--panel); }
+.svc:hover { border-color: rgba(201, 162, 75, 0.5); background: var(--panel); }
 .svc__mark {
   flex: 0 0 auto;
   display: grid;
@@ -610,7 +654,7 @@ body.consent-on .hero__inner { padding-bottom: calc(var(--bar-h) + 12rem); }
    appears, so the state survives a greyscale screenshot. */
 .svc[aria-pressed="true"] {
   border-color: var(--gold);
-  background: radial-gradient(120% 160% at 10% 0%, rgba(201, 162, 75, 0.2), rgba(27, 24, 19, 0.9) 62%);
+  background: radial-gradient(120% 160% at 10% 0%, rgba(201, 162, 75, 0.2), rgba(39, 34, 25, 0.9) 62%);
 }
 .svc[aria-pressed="true"] .svc__mark { border-color: var(--gold); color: var(--gold); }
 .svc[aria-pressed="true"] .svc__name { color: var(--cream); }
@@ -670,7 +714,7 @@ button.svc .svc__ext { display: none; }
   overflow: hidden;
   scroll-snap-align: start;
 }
-.gal__cell img, .gal__cell video { width: 100%; height: 100%; object-fit: cover; filter: grayscale(1) sepia(0.5) saturate(1.75) hue-rotate(-8deg) brightness(0.86); }
+.gal__cell img, .gal__cell video { width: 100%; height: 100%; object-fit: cover; filter: grayscale(1) sepia(0.5) saturate(1.75) hue-rotate(-8deg) brightness(0.97); }
 /* The captions sit over photographs of lit ceiling lamps — the brightest thing on
    the site. A text-shadow is not enough there, so the cell earns a foot. */
 .gal__cell::after {
@@ -722,15 +766,15 @@ button.svc .svc__ext { display: none; }
 }
 .about h2 { margin: 0.625rem 0 1rem; font-size: clamp(1.875rem, 7.7vw, 3.5rem); line-height: 1.04; }
 .about__media { border-radius: var(--r-card); overflow: hidden; margin-bottom: 1.125rem; }
-.about__media img { width: 100%; height: 100%; object-fit: cover; aspect-ratio: 3 / 4; filter: grayscale(1) sepia(0.42) saturate(1.6) hue-rotate(-8deg) brightness(0.9); }
-.about__text p { color: var(--stone); font-size: 0.96875rem; }
-.about__text p + p { margin-top: 0.75rem; }
+.about__media img { width: 100%; height: 100%; object-fit: cover; aspect-ratio: 3 / 4; filter: grayscale(1) sepia(0.42) saturate(1.6) hue-rotate(-8deg) brightness(1); }
+.about__body p { color: var(--stone); font-size: 0.96875rem; }
+.about__body p + p { margin-top: 0.75rem; }
 .about__quote {
   margin-top: 1.25rem;
   padding: 1.125rem;
   border: 1px solid var(--line);
   border-radius: var(--r-card);
-  background: rgba(27, 24, 19, 0.6);
+  background: rgba(39, 34, 25, 0.6);
   font: 500 1.3125rem/1.32 var(--display);
   color: var(--cream-2);
 }
@@ -744,11 +788,40 @@ button.svc .svc__ext { display: none; }
   color: var(--stone-dim);
 }
 @media (min-width: 60em) {
-  .about__grid { display: grid; grid-template-columns: 0.8fr 1.2fr; gap: 3.5rem; align-items: center; }
-  .about__media { margin-bottom: 0; max-width: var(--portrait-max); }
-  .about h2 { margin: 0.75rem 0 1.375rem; max-width: 22ch; letter-spacing: -0.04em; }
-  .about__text p { max-width: 56ch; font-size: 1rem; }
-  .about__text p + p { margin-top: 0.875rem; }
+  /* Copy in the left column, photograph in the right, ranged right so the type's
+     edge runs against the picture instead of stopping short of it. Explicit
+     placement rather than source order: the phone wants label, heading, picture,
+     body, and that is the order the markup is in. */
+  .about__grid {
+    display: grid;
+    grid-template-columns: 1.15fr 0.85fr;
+    column-gap: 3.5rem;
+    align-items: start;
+    text-align: right;
+  }
+  .about__head { grid-column: 1; grid-row: 1; }
+  .about__body { grid-column: 1; grid-row: 2; }
+  .about__media {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+    align-self: center;
+    justify-self: end;
+    margin-bottom: 0;
+    max-width: var(--portrait-max);
+  }
+  /* The measures stay; ranging right just moves them to the column's right edge. */
+  .about h2, .about__body p, .about__quote { margin-left: auto; }
+  /* Longhands, not the shorthand: `margin: x 0 y` resets margin-left to 0 and was
+     silently undoing the margin-left:auto that ranges the heading right. */
+  .about h2 {
+    margin-top: 0.75rem;
+    margin-bottom: 1.375rem;
+    margin-left: auto;
+    max-width: 22ch;
+    letter-spacing: -0.04em;
+  }
+  .about__body p { max-width: 56ch; font-size: 1rem; }
+  .about__body p + p { margin-top: 0.875rem; }
   .about__quote { margin-top: 1.625rem; padding: 1.375rem 1.5rem; border-radius: 16px; font-size: 1.625rem; max-width: 48ch; }
   .about__quote cite { margin-top: 0.75rem; }
 }
@@ -764,12 +837,12 @@ button.svc .svc__ext { display: none; }
   display: flex;
   flex-direction: column;
   padding: 0.875rem 0.875rem 1rem;
-  border: 1px solid rgba(201, 162, 75, 0.18);
+  border: 1px solid rgba(201, 162, 75, 0.28);
   border-radius: var(--r-card);
   background: var(--ink-2);
   transition: border-color 0.35s var(--ease);
 }
-.prod:hover { border-color: rgba(201, 162, 75, 0.45); }
+.prod:hover { border-color: rgba(201, 162, 75, 0.55); }
 .prod__shot { position: relative; aspect-ratio: 1; display: grid; place-items: center; padding: 8%; margin-bottom: 0.75rem; }
 /* The pool of light behind the object, not a fill under it. */
 .prod__shot::before {
@@ -814,7 +887,7 @@ button.svc .svc__ext { display: none; }
    ========================================================================= */
 .visit { padding-block: var(--sec); background: var(--ink-2); }
 .visit__grid { display: grid; gap: 1rem; }
-.visit__card { padding: 1rem; border: 1px solid var(--line); border-radius: var(--r-card); background: rgba(27, 24, 19, 0.6); }
+.visit__card { padding: 1rem; border: 1px solid var(--line); border-radius: var(--r-card); background: rgba(39, 34, 25, 0.6); }
 .visit__card h3 { margin-bottom: 0.25rem; font: 400 0.78rem var(--sans); letter-spacing: 0.18em; text-transform: uppercase; color: var(--stone-dim); }
 .visit__card + .visit__card { margin-top: 0; }
 .visit address { font-style: normal; color: var(--stone); line-height: 1.7; font-size: 0.9375rem; }
@@ -880,9 +953,8 @@ button.svc .svc__ext { display: none; }
 .footer { padding: 1.625rem var(--gutter) calc(var(--bar-h) + 1rem); background: var(--ink-2); text-align: center; }
 .footer__brand { display: inline-grid; justify-items: center; }
 .footer__brand .hex { margin-bottom: 0.625rem; }
-.footer__name { display: block; font: 500 1.5rem/0.92 var(--display); letter-spacing: -0.015em; }
-.footer__name i { font-style: italic; }
-.footer__tag { display: block; margin-top: 0.375rem; font-size: 0.78rem; letter-spacing: 0.1em; color: var(--stone-dim); }
+.footer__brand .brand__name { font-size: 1.5rem; }
+.footer__brand .brand__tag { margin-top: 0.375rem; }
 .footer__links { display: flex; flex-wrap: wrap; justify-content: center; gap: 0 1.125rem; margin-top: 0.125rem; }
 .footer__links a, .footer__reset {
   display: inline-flex;
@@ -904,8 +976,8 @@ button.svc .svc__ext { display: none; }
   .footer { display: flex; align-items: center; justify-content: space-between; gap: 2rem; flex-wrap: wrap; text-align: left; padding-block: 2.75rem calc(var(--bar-h) + 1rem); }
   .footer__brand { display: flex; align-items: center; gap: 0.875rem; }
   .footer__brand .hex { margin-bottom: 0; }
-  .footer__name { font-size: 1.625rem; }
-  .footer__tag { margin-top: 0.3125rem; }
+  .footer__brand .brand__name { font-size: 1.625rem; }
+  .footer__brand .brand__tag { margin-top: 0.3125rem; }
   .footer__links { margin-top: 0; gap: 0 1.625rem; }
   .footer__legal { flex: 1 0 100%; margin-top: 0; }
     .footer__legal > span { display: inline; }
@@ -930,23 +1002,31 @@ button.svc .svc__ext { display: none; }
 .rail { display: none; }
 
 @media (min-width: 75em) {
-  :root { --rail-w: 8.75rem; }
+  :root {
+    --rail-w: 8.75rem;
+    /* How much the content has to give up so the menu clears it — and no more.
+       The centred column already leaves (100% - --wrap) / 2 free on the left, and
+       the menu needs --rail-w from the window edge. The padding covers only what
+       the centring does not, so on a display wide enough that the centring covers
+       all of it the indent falls to zero and the page is symmetric again.
+       The percentage resolves against the padded element's own containing block,
+       which is the body — the same basis --gutter uses. */
+    --rail-indent: max(0px, calc(var(--rail-w) - max(0px, calc((100% - var(--wrap)) / 2))));
+  }
 
-  /* The menu's column, taken out of the content's left inset. Asymmetric on
-     purpose — the band is occupied, not empty. */
   /* Two different insets on purpose, and mixing them up is what made the
      wordmark and the hero copy disagree above a 2400px viewport.
 
      .wrap already has max-width + auto margins, so it is centred before any
      padding applies: it needs --pad, and adding --gutter counted the centring a
-     second time — content drifted right by exactly (100vw - --wrap) / 2, which is
+     second time — content drifted right by exactly (100% - --wrap) / 2, which is
      invisible below 2400px and 529px of drift on a 3440px display.
 
      The nav and the footer are full-bleed with no max-width of their own, so they
      do need --gutter to land their contents on the same column. */
-  body.has-rail .wrap { padding-left: calc(var(--pad) + var(--rail-w)); }
+  body.has-rail .wrap { padding-left: calc(var(--pad) + var(--rail-indent)); }
   body.has-rail .nav,
-  body.has-rail .footer { padding-left: calc(var(--gutter) + var(--rail-w)); }
+  body.has-rail .footer { padding-left: calc(var(--gutter) + var(--rail-indent)); }
   /* The rail stands in for them. */
   body.has-rail .nav__links { display: none; }
 
@@ -956,8 +1036,10 @@ button.svc .svc__ext { display: none; }
     top: 50%;
     left: 0;
     z-index: 24;
-    width: calc(var(--gutter) + var(--rail-w));
-    padding-left: var(--gutter);
+    /* Pinned to the page's own edge gutter rather than to the content column, so
+       it does not float in the middle of the empty band on a wide display. */
+    width: calc(var(--pad) + var(--rail-w));
+    padding-left: var(--pad);
     transform: translateY(-50%);
   }
 
@@ -1047,7 +1129,7 @@ body.bar-on .bar { opacity: 1; transform: none; pointer-events: auto; visibility
   display: grid;
   place-items: center;
   border-radius: 99px;
-  background: rgba(27, 24, 19, 0.92);
+  background: rgba(39, 34, 25, 0.92);
   border: 1px solid rgba(243, 237, 227, 0.28);
   color: var(--cream);
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
@@ -1119,11 +1201,11 @@ body.sheet-on .sheet__panel { transform: none; }
   padding: 0.875rem;
   border: 1px solid var(--line);
   border-radius: var(--r-card);
-  background: rgba(27, 24, 19, 0.7);
+  background: rgba(39, 34, 25, 0.7);
   transition: background 0.18s var(--ease);
 }
 /* Armed: the card lights up when a service is actually held. */
-body.sheet-armed .sheet__card { background: radial-gradient(120% 140% at 10% 0%, rgba(201, 162, 75, 0.16), rgba(27, 24, 19, 0.9) 60%); }
+body.sheet-armed .sheet__card { background: radial-gradient(120% 140% at 10% 0%, rgba(201, 162, 75, 0.16), rgba(39, 34, 25, 0.9) 60%); }
 .sheet__row { display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; }
 .sheet__row--total { padding-top: 0.5rem; border-top: 1px solid var(--line); }
 .sheet__k { font-size: 0.78rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--stone-dim); }
@@ -1137,6 +1219,8 @@ body.sheet-armed .sheet__total { background: var(--gold-soft); }
     -webkit-background-clip: text;
     background-clip: text;
     color: transparent;
+    padding-block: 0.3em;
+    margin-block: -0.3em;
   }
 }
 .sheet__actions { display: grid; gap: 0.5rem; margin-top: 0.875rem; }
@@ -1182,7 +1266,7 @@ body.sheet-armed .sheet__total { background: var(--gold-soft); }
   align-items: center;
   gap: 0.5rem;
   padding: 0.75rem 0.875rem;
-  background: rgba(27, 24, 19, 0.97);
+  background: rgba(39, 34, 25, 0.97);
   border: 1px solid var(--line);
   border-radius: var(--r-card);
   box-shadow: 0 12px 34px rgba(0, 0, 0, 0.5);

@@ -261,7 +261,7 @@ const L = {
       // The picker replaced the price table: tapping a row selects the service, the
       // sticky bar arms with it, and the hand-off carries it. This line says so, because
       // a table that suddenly responds to taps needs one sentence of explanation.
-      pickHint: "Διάλεξε μια υπηρεσία. Η μπάρα από κάτω γεμίζει και η Fresha ανοίγει σε αυτήν.",
+      pickHint: "Ένα από κάθε ομάδα, έως τρία. Η μπάρα από κάτω τα αθροίζει και η Fresha ανοίγει με την επιλογή σου.",
       totalEmpty: "Δεν έχεις διαλέξει ακόμη",
       note: "Οι τιμές είναι σε ευρώ. Πληρωμή στο κατάστημα (μετρητά / κάρτα). Πέρνα και χωρίς ραντεβού αν είναι ελεύθερη καρέκλα — το ραντεβού απλώς κρατά την ώρα.",
       groups: [
@@ -323,6 +323,7 @@ const L = {
       ],
       quote: "«Παίρνει τον χρόνο του για ένα τέλειο κούρεμα.»",
       quoteAuthor: "— από κριτική πελάτη στο Google",
+      mediaAlt: "Ψηλό fade και περιποιημένο γένι, μέσα στο κουρείο",
     },
     // `intro` and `captions` describe only the photographs that actually exist. The shot
     // list in the redesign brief (before/after pairs, a portrait of the barber, detail
@@ -573,7 +574,7 @@ const L = {
     services: {
       label: "Price list",
       heading: "Services & prices",
-      pickHint: "Pick a service. The bar below arms with it and Fresha opens on that one.",
+      pickHint: "One from each group, up to three. The bar below adds them up and Fresha opens with your pick.",
       totalEmpty: "Nothing ticked yet",
       note: "Prices in euros. Payment in-shop (cash / card). Walk in if a chair is free — booking just holds the time.",
       groups: [
@@ -630,6 +631,7 @@ const L = {
       ],
       quote: "“He takes his time for a flawless cut.”",
       quoteAuthor: "— from a client's Google review",
+      mediaAlt: "A high fade and a trimmed beard, inside the shop",
     },
     gallery: {
       label: "Gallery",

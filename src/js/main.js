@@ -76,7 +76,8 @@
 
   if (picker) {
     // i18n and the Fresha base URL travel on the container, so nothing that a
-    // translator owns is hardcoded in this file.
+    // translator owns is hardcoded in this file. T.many is the "{n} services"
+    // pattern, used once more than one group is held.
     const T = picker.dataset;
     const rows = [];
 
@@ -100,40 +101,65 @@
     const shTotal = document.getElementById("sheet-total");
     const shGo = document.getElementById("sheet-go");
 
-    // Single-select: one service, one price, one unambiguous action. Tapping the
-    // held row lets go of it.
-    let held = null;
+    // One service per group, any number of groups — so at most one haircut, one
+    // beard-or-wash and one treatment, which is what a single visit to the chair
+    // actually looks like. Picking a second row in a group replaces the first
+    // rather than adding to it; picking the row that is already held lets it go.
+    //
+    // Keyed by data-cat rather than by walking the DOM, so the rule survives any
+    // change to how the groups are laid out.
+    const held = Object.create(null);
+
+    // Group order, taken from the markup, so the bar and the sheet list services
+    // in the order the page shows them rather than the order they were tapped.
+    const order = rows
+      .map((r) => r.dataset.cat)
+      .filter((cat, i, all) => all.indexOf(cat) === i);
+    const chosen = () => order.map((cat) => held[cat]).filter(Boolean);
 
     const render = () => {
-      const armed = Boolean(held);
+      const list = chosen();
+      const armed = list.length > 0;
       document.body.classList.toggle("sheet-armed", armed);
 
-      const label = armed ? held.dataset.name : "";
-      const dur = armed ? held.dataset.dur + " " + T.unit : "";
-      const price = armed ? "€" + held.dataset.price : "";
+      const dur = list.reduce((n, r) => n + Number(r.dataset.dur), 0);
+      const price = list.reduce((n, r) => n + Number(r.dataset.price), 0);
+      const names = list.map((r) => r.dataset.name);
+      // One service is named; several are counted, because "Haircut, Beard, Face
+      // mask · 60 min · €40" does not fit the bar in any language.
+      const label = list.length === 1 ? names[0] : T.many.replace("{n}", list.length);
+      const durText = dur + " " + T.unit;
+      const priceText = "€" + price;
 
-      if (totalK) totalK.textContent = armed ? label + " · " + dur : T.empty;
-      if (totalV) totalV.textContent = armed ? price : "—";
+      if (totalK) totalK.textContent = armed ? label + " · " + durText : T.empty;
+      if (totalV) totalV.textContent = armed ? priceText : "—";
 
-      if (barTitle) barTitle.textContent = armed ? label + " · " + dur + " · " + price : T.open;
+      if (barTitle) barTitle.textContent = armed ? label + " · " + durText + " · " + priceText : T.open;
       if (barSub) barSub.textContent = armed ? T.sub : T.via;
 
-      if (shSvc) shSvc.textContent = armed ? label : T.any;
-      if (shDur) shDur.textContent = armed ? dur : T.choose;
-      if (shTotal) shTotal.textContent = armed ? price : T.from;
-      // The ticked service travels with the click. Fresha ignores query keys it
+      // The sheet has room to name every service even when the bar does not.
+      if (shSvc) shSvc.textContent = armed ? names.join(", ") : T.any;
+      if (shDur) shDur.textContent = armed ? durText : T.choose;
+      if (shTotal) shTotal.textContent = armed ? priceText : T.from;
+      // The ticked services travel with the click. Fresha ignores query keys it
       // does not know, so today this carries the choice into our own analytics
       // rather than pre-filling their menu — the value is the same URL either
       // way, and it is ready the day Fresha accepts a service parameter.
-      if (shGo) shGo.href = armed ? T.fresha + "?service=" + encodeURIComponent(held.dataset.svc) : T.fresha;
+      if (shGo) {
+        shGo.href = armed
+          ? T.fresha + "?service=" + encodeURIComponent(list.map((r) => r.dataset.svc).join(","))
+          : T.fresha;
+      }
     };
 
     rows.forEach((row) => {
       row.addEventListener("click", () => {
-        const on = row === held;
-        rows.forEach((r) => r.setAttribute("aria-pressed", "false"));
-        held = on ? null : row;
-        if (held) held.setAttribute("aria-pressed", "true");
+        const cat = row.dataset.cat;
+        const wasHeld = held[cat] === row;
+        // Clear the group, then take the row unless it was the one already held.
+        rows.forEach((r) => { if (r.dataset.cat === cat) r.setAttribute("aria-pressed", "false"); });
+        if (wasHeld) delete held[cat];
+        else { held[cat] = row; row.setAttribute("aria-pressed", "true"); }
         render();
       });
     });
@@ -322,8 +348,8 @@
     if (!hit) return;
     const params = { link_url: a.href };
     if (hit.event === "book_click") {
-      const held = document.querySelector('#picker .svc[aria-pressed="true"]');
-      params.service = held ? held.dataset.svc : "none";
+      const picked = [].slice.call(document.querySelectorAll('#picker .svc[aria-pressed="true"]'));
+      params.service = picked.length ? picked.map(function (r) { return r.dataset.svc; }).join(",") : "none";
     }
     // Every one of these links is target="_blank" or a tel: hand-off, so the current
     // document is never torn down — the hit has time to leave without transport_type.

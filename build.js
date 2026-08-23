@@ -308,10 +308,13 @@ const hex = `<span class="hex" aria-hidden="true"></span>`;
 // metal gradient. The whitespace between the spans is deliberate — they render as
 // blocks, but it keeps the text content reading as two words for anything that
 // copies or speaks it.
+const brandBlock = (lang) =>
+  `${hex}<span class="brand"><span class="brand__name">${wordmark}</span><span class="brand__tag">${esc(L[lang].footer.tagline)}</span></span>`;
+
 const wordmark = (() => {
   const parts = SITE.brand.split(" ");
   const last = parts.pop();
-  return `<span>${esc(parts.join(" "))}</span> <i>${esc(last)}</i>`;
+  return `<span>${esc(parts.join(" "))}</span> <i class="metal">${esc(last)}</i>`;
 })();
 
 function navHtml(lang) {
@@ -329,7 +332,7 @@ function navHtml(lang) {
     .map(([href, label]) => `<a href="${href}">${esc(label)}</a>`)
     .join("");
   return `<header class="nav" aria-label="${esc(SITE.brand)}">
-    <a class="nav__logo" href="${b}" aria-label="${esc(SITE.brandFull)}">${wordmark}</a>
+    <a class="nav__logo" href="${b}" aria-label="${esc(SITE.brandFull)}">${brandBlock(lang)}</a>
     <div class="nav__right">
       <nav class="nav__links" aria-label="Primary">${links}</nav>
       <div class="lang" role="group" aria-label="Language">${langSwitchHtml(lang, basePath)}</div>
@@ -354,7 +357,6 @@ function heroHtml(lang) {
     </div>
     <span class="hero__pool" aria-hidden="true"></span>
     <span class="hero__scrim" aria-hidden="true"></span>
-    ${navHtml(lang)}
     <div class="wrap hero__inner">
       <!-- The eyebrow carries the service category and the district, which the H1
            alone did not (KW-073). It reads as one sentence to a crawler and as a
@@ -442,7 +444,7 @@ function servicesHtml(lang) {
       const rows = SERVICES.filter((s) => s.cat === g.cat)
         .map(
           (s) => `<li><a class="svc" href="${SITE.freshaUrl}" target="_blank" rel="noopener"
-            data-svc="${esc(s.key)}" data-name="${esc(t.names[s.key])}" data-dur="${s.dur}" data-price="${s.price}">
+            data-svc="${esc(s.key)}" data-cat="${esc(s.cat)}" data-name="${esc(t.names[s.key])}" data-dur="${s.dur}" data-price="${s.price}">
             <span class="svc__mark" aria-hidden="true">✓</span>
             <span class="svc__name">${esc(t.names[s.key])}</span>
             <span class="svc__dur num">${s.dur} ${esc(t.min)}</span>
@@ -472,6 +474,7 @@ function servicesHtml(lang) {
         data-via="${esc(bk.barVia)}"
         data-any="${esc(bk.anyService)}"
         data-choose="${esc(bk.chooseOnFresha)}"
+        data-many="${esc(bk.manyServices)}"
         data-from="${esc(L[lang].hero.pill)}">${groups}</div>
       <!-- Reads "Nothing ticked yet — —" until a row is picked. aria-live so the
            running total is announced when it changes, since the change is the
@@ -554,16 +557,26 @@ function productsHtml(lang) {
 
 function aboutHtml(lang) {
   const t = L[lang].about;
-  // The 3:4 portrait split and the gold-ruled pull-quote were the most finished
-  // block on the old site and are kept as they were. The portrait of the barber
-  // the redesign asks for has not been shot; until it is, the fade photograph
-  // holds the frame rather than a captioned placeholder.
+  // Three children rather than two, so both breakpoints get the order the design
+  // asks for from one DOM: on the phone the label and the heading come first, the
+  // photograph sits under them and the body follows; on the desktop the heading
+  // and the body stack in the left column with the photograph beside them.
+  //
+  // The gold-ruled pull-quote is unchanged — it was the most finished block on the
+  // old site.
   return `<section class="about" id="about">
     <div class="wrap about__grid">
-      <figure class="about__media img-reveal"><img src="${img("haircut-fade.webp")}" alt="${esc(L[lang].gallery.alt)}" width="1080" height="1920" loading="lazy" decoding="async"></figure>
-      <div class="about__text">
+      <div class="about__head">
         <p class="eyebrow reveal">${esc(t.label)}</p>
         <h2 class="reveal">${esc(t.heading)}</h2>
+      </div>
+      <figure class="about__media img-reveal">
+        <img src="${img("shop-fade-928.jpg")}"
+             srcset="${img("shop-fade-560.jpg")} 560w, ${img("shop-fade-928.jpg")} 928w"
+             sizes="(min-width: 60em) 30vw, 92vw"
+             alt="${esc(t.mediaAlt)}" width="928" height="1152" loading="lazy" decoding="async">
+      </figure>
+      <div class="about__body">
         ${t.body.map((p) => `<p>${esc(p)}</p>`).join("")}
         <blockquote class="about__quote">${esc(t.quote)}<cite>${esc(t.quoteAuthor)}</cite></blockquote>
       </div>
@@ -682,13 +695,7 @@ function footerHtml(lang) {
     .map((lg) => `<a href="${basePath(lg)}" hreflang="${hrefLangCode(lg)}" lang="${hrefLangCode(lg)}">${esc(L[lg].label)}</a>`)
     .join("");
   return `<footer class="footer">
-    <div class="footer__brand">
-      ${hex}
-      <span>
-        <span class="footer__name">${wordmark}</span>
-        <span class="footer__tag">${esc(t.footer.tagline)}</span>
-      </span>
-    </div>
+    <div class="footer__brand">${brandBlock(lang)}</div>
     <div class="footer__links">
       <a href="${SITE.instagram}" target="_blank" rel="noopener">@marino_barbero</a>
       <a href="${SITE.googleProfile}" target="_blank" rel="noopener">${esc(t.footer.reviews)}</a>
@@ -911,9 +918,12 @@ function renderPage(lang) {
   ${headHtml(lang)}
 </head>
 <body class="has-rail">
+  <!-- Sticky for the whole page, and pulled over the hero photograph by a negative
+       margin on .hero rather than by living inside it — inside the hero it scrolled
+       away with it, and below 1200px, where there is no side menu, that left the
+       page with no navigation at all. -->
+  ${navHtml(lang)}
   <main>
-    <!-- The nav is emitted inside .hero so it can sit over the photograph without
-         a second stacking context; the hero is the only section it overlaps. -->
     ${heroHtml(lang)}
     ${fadeHtml(lang)}
     ${servicesHtml(lang)}
@@ -1036,7 +1046,7 @@ function notFoundHtml(lang) {
 </head>
 <body class="nf-body no-bar">
   <header class="nav nav--solid" aria-label="${esc(SITE.brand)}">
-    <a class="nav__logo" href="${b}" aria-label="${esc(SITE.brandFull)}">${wordmark}</a>
+    <a class="nav__logo nav__logo--bare" href="${b}" aria-label="${esc(SITE.brandFull)}">${brandBlock(lang)}</a>
     <div class="lang" role="group" aria-label="Language">${langSwitchHtml(lang, basePath)}</div>
   </header>
   <main class="notfound">
