@@ -934,7 +934,17 @@ button.svc .svc__ext { display: none; }
 
   /* The menu's column, taken out of the content's left inset. Asymmetric on
      purpose — the band is occupied, not empty. */
-  body.has-rail .wrap,
+  /* Two different insets on purpose, and mixing them up is what made the
+     wordmark and the hero copy disagree above a 2400px viewport.
+
+     .wrap already has max-width + auto margins, so it is centred before any
+     padding applies: it needs --pad, and adding --gutter counted the centring a
+     second time — content drifted right by exactly (100vw - --wrap) / 2, which is
+     invisible below 2400px and 529px of drift on a 3440px display.
+
+     The nav and the footer are full-bleed with no max-width of their own, so they
+     do need --gutter to land their contents on the same column. */
+  body.has-rail .wrap { padding-left: calc(var(--pad) + var(--rail-w)); }
   body.has-rail .nav,
   body.has-rail .footer { padding-left: calc(var(--gutter) + var(--rail-w)); }
   /* The rail stands in for them. */
