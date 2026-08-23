@@ -668,7 +668,7 @@ function footerHtml(lang) {
   const otherLinks = other
     .map((lg) => `<a href="${basePath(lg)}" hreflang="${hrefLangCode(lg)}" lang="${hrefLangCode(lg)}">${esc(L[lg].label)}</a>`)
     .join("");
-  return `<footer class="footer wrap">
+  return `<footer class="footer">
     <div class="footer__brand">
       ${hex}
       <span>

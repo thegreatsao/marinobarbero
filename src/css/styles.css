@@ -105,11 +105,19 @@
      numbers the resolved artboards actually use. */
   --sec: clamp(1.9rem, 8vw, 4.9rem);
 
-  /* 1440 is the desktop artboard, and --pad resolves to its 48px gutter there
-     and to the mobile 18px at 390 — so the page is edge-to-edge at both sizes
-     rather than centred inside a narrower column. */
-  --wrap: 1440px;
-  --pad: clamp(1.125rem, 3.4vw, 3rem);
+  /* --pad resolves to the artboard's own gutters — 18px at 390, 48px at 1440 —
+     and keeps opening on larger displays. --wrap is a readability ceiling, not
+     the artboard width: at 1440 and below it never binds, so the design renders
+     exactly as drawn, and above it the page keeps growing until a text column
+     would get too long to read comfortably.
+     --gutter is --pad plus whatever it takes to line an element's contents up
+     with that centred column while the element itself stays full-bleed. Panels
+     that carry a background (nav, footer, sticky bar) use it: capping their
+     width instead left the nav's panel floating as an island in the middle of
+     the hero photograph on any display wider than the cap. */
+  --wrap: 2400px;
+  --pad: clamp(1.125rem, 3.4vw, 4.5rem);
+  --gutter: max(var(--pad), calc((100% - var(--wrap)) / 2 + var(--pad)));
 
   --r: 4px;
   --r-card: 14px;
@@ -268,9 +276,7 @@ section[id] { scroll-margin-top: calc(var(--nav-h) + 8px); }
   justify-content: space-between;
   gap: 1rem;
   width: 100%;
-  max-width: var(--wrap);
-  margin-inline: auto;
-  padding-inline: var(--pad);
+  padding-inline: var(--gutter);
   background: transparent;
   border-bottom: 1px solid transparent;
 }
@@ -801,7 +807,7 @@ button.svc .svc__ext { display: none; }
 /* =========================================================================
    Footer
    ========================================================================= */
-.footer { padding-block: 1.625rem calc(var(--bar-h) + 2.5rem); background: var(--ink-2); text-align: center; }
+.footer { padding: 1.625rem var(--gutter) calc(var(--bar-h) + 2.5rem); background: var(--ink-2); text-align: center; }
 .footer__brand { display: inline-grid; justify-items: center; }
 .footer__brand .hex { margin-bottom: 0.625rem; }
 .footer__name { display: block; font: 500 1.5rem/1 var(--display); }
@@ -897,7 +903,7 @@ body.bar-on .bar { opacity: 1; transform: none; pointer-events: auto; visibility
 }
 .bar__wa:hover { background: rgba(43, 38, 29, 0.95); border-color: rgba(243, 237, 227, 0.5); color: var(--cream); }
 @media (min-width: 60em) {
-  .bar { justify-content: flex-end; gap: 0.625rem; padding: 0.875rem var(--pad) 1rem; background: linear-gradient(180deg, transparent, rgba(16, 15, 13, 0.92) 42%); }
+  .bar { justify-content: flex-end; gap: 0.625rem; padding: 0.875rem var(--gutter) 1rem; background: linear-gradient(180deg, transparent, rgba(16, 15, 13, 0.92) 42%); }
   .bar__book { flex: 0 0 auto; min-width: 400px; padding-left: 1.375rem; font-size: 1rem; }
 }
 @media (prefers-reduced-motion: reduce) {
