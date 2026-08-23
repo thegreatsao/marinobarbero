@@ -8,7 +8,7 @@
 const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
-const { SITE, HOURS, SERVICES, PRODUCTS, L } = require("./content/content.js");
+const { SITE, HOURS, SERVICES, PRODUCTS, GALLERY, L } = require("./content/content.js");
 
 const ROOT = __dirname;
 const SRC = path.join(ROOT, "src");
@@ -28,14 +28,40 @@ const hash8 = (buf) => crypto.createHash("sha1").update(buf).digest("hex").slice
 const IMG = {};
 const img = (name) => IMG[name] || `/assets/img/${name}`;
 
+// Self-hosted display face. The two files are content-hashed like every other
+// asset, which means the @font-face src in styles.css cannot be written by hand:
+// the stylesheet ships a placeholder per file and build() substitutes the hashed
+// URL before minifying and hashing the CSS itself. That keeps /assets/* on the
+// immutable one-year cache without ever serving a stale pairing.
+//
+// Latin only, on purpose. Playfair Display has no Greek coverage, so /el/ falls
+// through to Georgia (see the @font-face block in styles.css). Preloading is
+// per-page and per-language for the same reason — see headHtml().
+const FONTS = {
+  __FONT_LATIN__: "playfair-display-latin.woff2",
+  __FONT_ITALIC__: "playfair-display-italic-latin.woff2",
+};
+const FONT_URL = {};
+const font = (file) => FONT_URL[file] || `/assets/fonts/${file}`;
+
+// Whether any Work cell carries a video loop. Drives the one CSP directive that
+// only exists when there is media to play, so the header stays minimal until the
+// two loops in the shot list are actually shot.
+const hasVideo = GALLERY.some((g) => g.video);
+
 // CSP source hash for an inline <script> body (must match the bytes between the tags
 // exactly). Used to keep script-src strict — no 'unsafe-inline' — while still allowing
 // our own inline snippets (the js-class flag and, when enabled, the GA4 config).
 const cspHash = (js) => `'sha256-${crypto.createHash("sha256").update(js, "utf8").digest("base64")}'`;
 
 // Inline script bodies, defined once so the emitted <script> and the CSP hash always
-// agree. INLINE_JS_CLASS sets the "js" class before paint (progressive enhancement).
-const INLINE_JS_CLASS = `document.documentElement.className="js";`;
+// agree.
+//
+// The old `html.js` flag is gone: its only consumer was the reveal gate in
+// styles.css, and the reveals are scroll-driven CSS now. Nothing on the page
+// needs to know whether scripting is on, so the page ships one less inline
+// script and one less CSP hash.
+//
 // GA4 + Google Ads bootstrap with Consent Mode v2. One line, no trailing newline, so its
 // hash is stable. Consent DEFAULTS to denied (no cookies) before gtag runs — GDPR/ePrivacy
 // for EU/Cyprus visitors; the banner (main.js) grants all four categories on accept, and a
@@ -251,55 +277,120 @@ function breadcrumbJsonLd(lang, page) {
 }
 
 /* ---------- partials ---------- */
+
+// The cheapest price on the menu, for the "from €18" pill above the fold and the
+// booking sheet's resting state. Read from SERVICES so it cannot contradict the
+// price list further down the page.
+const priceFloor = Math.min(...SERVICES.map((s) => s.price));
+
+// The language switch is a pair of real links inside a pill, not a toggle: "/" is
+// English and "/el/" is Greek, both crawlable, both 56x40 inside a 48px row. The
+// current language renders as a <span> — a link to the page you are already on is
+// noise for a screen reader and a wasted tap target.
+function langSwitchHtml(lang, hrefFor) {
+  return SITE.langs
+    .map((lg) =>
+      lg === lang
+        ? `<span class="active" aria-current="true" lang="${hrefLangCode(lg)}">${lg.toUpperCase()}</span>`
+        : `<a href="${hrefFor(lg)}" hreflang="${hrefLangCode(lg)}" lang="${hrefLangCode(lg)}" aria-label="${esc(L[lg].label)}">${lg.toUpperCase()}</a>`
+    )
+    .join("");
+}
+
+// The hexagon of the interior lamps — the brand's visual signature, drawn with a
+// clip-path over the metal gradient so it costs no request and no image bytes.
+const hex = `<span class="hex" aria-hidden="true"></span>`;
+
 function navHtml(lang) {
   const t = L[lang], b = basePath(lang);
-  const link = (href, label) => `<a href="${href}">${esc(label)}</a>`;
-  const langSwitch = SITE.langs
-    .map((lg) => `<a href="${basePath(lg)}" hreflang="${hrefLangCode(lg)}" class="${lg === lang ? "active" : ""}" aria-label="${esc(L[lg].label)}">${lg.toUpperCase()}</a>`)
+  // No burger. The mobile artboard carries the wordmark and the language switch
+  // and nothing else: a five-item overlay menu on a single-scroll page is a
+  // control that exists to be closed. The anchors below appear from 960px, where
+  // there is room for them on one line.
+  const links = [
+    ["#services", t.nav.services],
+    ["#gallery", t.nav.gallery],
+    ["#about", t.nav.about],
+    ["#visit", t.nav.visit],
+  ]
+    .map(([href, label]) => `<a href="${href}">${esc(label)}</a>`)
     .join("");
   return `<header class="nav" aria-label="${esc(SITE.brand)}">
-    <a class="nav__logo" href="${b}" aria-label="${esc(SITE.brandFull)}">MARINO<em>BARBERO</em></a>
-    <nav class="nav__menu" aria-label="Primary">
-      <div class="nav__links">
-        ${link("#services", t.nav.services)}
-        ${link("#products", t.nav.products)}
-        ${link("#about", t.nav.about)}
-        ${link("#gallery", t.nav.gallery)}
-        ${link("#visit", t.nav.visit)}
-      </div>
-      <div class="lang" role="group" aria-label="Language">${langSwitch}</div>
-      <a href="${SITE.freshaUrl}" class="btn btn--nav" target="_blank" rel="noopener" data-magnetic>${esc(t.nav.book)} <span class="arr">→</span></a>
-    </nav>
-    <button class="nav__burger" aria-label="Menu"><span></span><span></span><span></span></button>
+    <a class="nav__logo" href="${b}" aria-label="${esc(SITE.brandFull)}">${esc(SITE.brand)}</a>
+    <div class="nav__right">
+      <nav class="nav__links" aria-label="Primary">${links}</nav>
+      <div class="lang" role="group" aria-label="Language">${langSwitchHtml(lang, basePath)}</div>
+    </div>
   </header>`;
 }
 
+// Above the fold, the 15-second decision. A tourist standing on a street in Kato
+// Paphos with a phone gets all five answers before any scroll: what (barber shop),
+// where (Kato Paphos), proof (5.0 / 128), price (from €18) and action (Book).
+//
+// The photograph is full-bleed and gold-graded, the type sits in the dark half,
+// and the rating is the most designed object on the page — it is the strongest
+// asset the business owns and it used to be a line of text below the fold.
 function heroHtml(lang) {
-  const t = L[lang].hero;
-  // Join with spaces so the H1's text content reads as words ("Χρόνος για το τέλειο
-  // κούρεμα."), not run-together — matters for crawlers and screen readers. The space
-  // text nodes sit between block-level .line elements, so they don't affect layout.
-  const lines = t.titleLines.map((l) => `<span class="line"><span>${esc(l)}</span></span>`).join(" ");
+  const t = L[lang].hero, p = L[lang].proof;
   return `<section class="hero" id="top">
-    <div class="hero__media"><img src="${img("interior-bg.webp")}" alt="${esc(L[lang].meta.ogAlt)}" width="1440" height="1187" fetchpriority="high"></div>
-    <div class="hero__scrim" aria-hidden="true"></div>
+    <div class="hero__media">
+      <!-- LCP element. Stays a static <img> with fetchpriority=high and a matching
+           preload in <head>; no video is ever the LCP here. -->
+      <img src="${img("interior.webp")}" alt="${esc(L[lang].meta.ogAlt)}" width="1600" height="906" fetchpriority="high" decoding="sync">
+    </div>
+    <span class="hero__pool" aria-hidden="true"></span>
+    <span class="hero__scrim" aria-hidden="true"></span>
+    ${navHtml(lang)}
     <div class="wrap hero__inner">
-      <!-- The eyebrow lives INSIDE the h1 on purpose. On its own the headline said
-           "Time for the perfect cut" — no service category, no city — and the audit read
-           it as an H1 that answers no query (KW-073). Wrapped in here it reads
-           "Men's Barber Shop · Kato Paphos / Time for the perfect cut." to a crawler and
-           looks exactly as before to a visitor. -->
-      <h1 class="hero__title">
-        <span class="eyebrow hero__eyebrow">${esc(t.eyebrow)}</span>
-        <span class="hero__lines">${lines}</span>
-      </h1>
+      <!-- The eyebrow carries the service category and the district, which the H1
+           alone did not (KW-073). It reads as one sentence to a crawler and as a
+           kicker above the headline to a visitor. -->
+      <p class="eyebrow hero__eyebrow">${hex}${esc(t.eyebrow)}</p>
+      <h1 class="hero__title">${esc(t.titleLead)} <em class="metal">${esc(t.titleAccent)}</em></h1>
       <p class="hero__sub">${esc(t.subtitle)}</p>
+      <div class="hero__proof">
+        <span class="hero__score metal num">${esc(p.rating)}</span>
+        <span class="hero__rate">
+          <span class="hero__stars" aria-hidden="true">★★★★★</span>
+          <span class="hero__reviews">${esc(p.count)}</span>
+        </span>
+        <span class="pill hero__pill num">${esc(t.pill)}</span>
+        <span class="pill hero__pill--wide num">${esc(t.pillWide)}</span>
+      </div>
       <div class="hero__actions">
-        <a href="${SITE.freshaUrl}" class="btn" target="_blank" rel="noopener" data-magnetic>${esc(t.book)} <span class="arr">→</span></a>
+        <button type="button" class="btn" data-sheet-open>${esc(t.book)} <span class="arr" aria-hidden="true">→</span></button>
         <a href="${whatsappLink(lang)}" class="btn btn--ghost" target="_blank" rel="noopener">${esc(t.whatsapp)}</a>
       </div>
     </div>
-    <div class="scroll-cue" aria-hidden="true"><span>${esc(t.scroll)}</span><span class="bar"></span></div>
+  </section>`;
+}
+
+// Fade is the hero of the Google Ads campaign and had no matching region on the
+// page: the tightest ad-to-page message-match win available, and one of the three
+// Quality Score inputs. Everything stated here is confirmed by the Fresha menu.
+//
+// The before/after pair the design calls for does not exist yet, so this renders
+// the one photograph on hand rather than an empty slot captioned "to be shot".
+function fadeHtml(lang) {
+  const t = L[lang].fade;
+  const body = esc(t.body).replace("{svc}", `<span class="fade__svc">${esc(L[lang].services.names.fade)}</span>`);
+  const specs = t.specs
+    .map(([k, v]) => `<div><dt>${esc(k)}</dt><dd class="num">${esc(v)}</dd></div>`)
+    .join("");
+  return `<section class="fade" id="fade">
+    <div class="wrap fade__grid">
+      <div>
+        <p class="eyebrow reveal num">${esc(t.label)}</p>
+        <h2 class="reveal">${esc(t.headingLead)} <em>${esc(t.headingAccent)}</em></h2>
+        <p class="fade__body">${body}</p>
+        <dl class="fade__specs">${specs}</dl>
+      </div>
+      <figure class="fade__media img-reveal">
+        <img src="${img("haircut-fade.webp")}" alt="${esc(t.caption)}" width="1080" height="1920" loading="lazy" decoding="async">
+        <figcaption class="fade__cap">${esc(t.caption)}</figcaption>
+      </figure>
+    </div>
   </section>`;
 }
 
@@ -318,56 +409,36 @@ function crumbsHtml(lang, current) {
   </nav>`;
 }
 
-function proofHtml(lang) {
-  const t = L[lang].proof;
-  const stars = "★★★★★";
-  return `<section class="proof" aria-label="Google rating">
-    <div class="wrap proof__grid reveal">
-      <div class="proof__score">
-        <span class="proof__num">${esc(t.rating)}</span>
-        <span class="proof__stars" aria-hidden="true">${stars}</span>
-        <span class="proof__meta">${esc(t.of)} · ${esc(t.count)}</span>
-      </div>
-      <blockquote class="proof__quote">${esc(t.quote)}</blockquote>
-      <a class="proof__cta" href="${SITE.googleProfile}" target="_blank" rel="noopener">${esc(t.cta)} <span class="arr">↗</span></a>
-    </div>
-  </section>`;
-}
+/* ---------- the price list, rebuilt as a service picker ----------
+   The most important structural change in the redesign. The old block was a
+   table plus a separate CTA into Fresha's generic menu, so the customer chose
+   twice: once mentally here, once for real over there. Now the row IS the
+   choice — tapping it arms the sticky bar and the hand-off carries the service.
 
-function marqueeHtml(lang) {
-  const items = L[lang].marquee.map((m) => `<span>${esc(m)}</span><span class="dot" aria-hidden="true">·</span>`).join("");
-  // The clone is flagged item by item rather than wrapped in one element. The wrapper had
-  // to be display:contents so the flex gap would still land between words, and a text
-  // container with no box of its own reads as clipped text to anything measuring
-  // scrollWidth against clientWidth (MB-108).
-  const clones = L[lang].marquee
-    .map((m) => `<span data-marquee-clone>${esc(m)}</span><span class="dot" data-marquee-clone aria-hidden="true">·</span>`)
-    .join("");
-  // The track is emitted twice, and main.js no longer duplicates it at runtime. The loop
-  // needs two copies to scroll seamlessly (it translates by scrollWidth / 2), but doing
-  // that with innerHTML made the rendered DOM differ from the served HTML — 94 spans
-  // against 82 — which is exactly what MB-105 measures. Same pixels, one source.
-  // Two copies, each in its own element: the loop needs both (it translates by half the
-  // track), but below 860px the second one is hidden and the strip wraps instead of
-  // scrolling — a ticker is overflow:hidden by definition, which is what MB-108 counts as
-  // clipped text at phone width.
-  return `<div class="marquee" aria-hidden="true"><div class="marquee__track">${items}${clones}</div></div>`;
-}
+   Every row ships as an <a> straight into the Fresha menu, which is exactly
+   where it pointed before, so the page is fully bookable with JavaScript off.
+   main.js swaps each anchor for a real <button aria-pressed> on init.
 
+   The strings the picker needs at runtime ride on the container as data-*: the
+   unit, the resting labels and the Fresha base URL all belong to whoever owns
+   the translations, not to main.js. */
 function servicesHtml(lang) {
-  const t = L[lang].services;
+  const t = L[lang].services, bk = L[lang].booking;
   const groups = t.groups
     .map((g) => {
       const rows = SERVICES.filter((s) => s.cat === g.cat)
         .map(
-          (s) => `<li class="svc${s.hero ? " svc--hero" : ""}">
-            <span class="svc__name">${esc(t.names[s.key])}${s.hero ? ` <span class="svc__tag">★</span>` : ""}</span>
-            <span class="svc__dur">${s.dur} ${esc(t.min)}</span>
-            <span class="svc__price">€${s.price}</span>
-          </li>`
+          (s) => `<li><a class="svc" href="${SITE.freshaUrl}" target="_blank" rel="noopener"
+            data-svc="${esc(s.key)}" data-name="${esc(t.names[s.key])}" data-dur="${s.dur}" data-price="${s.price}">
+            <span class="svc__mark" aria-hidden="true">✓</span>
+            <span class="svc__name">${esc(t.names[s.key])}</span>
+            <span class="svc__dur num">${s.dur} ${esc(t.min)}</span>
+            <span class="svc__price num">€${s.price}</span>
+            <span class="svc__ext" aria-hidden="true">↗</span>
+          </a></li>`
         )
         .join("");
-      return `<div class="svc-group reveal">
+      return `<div class="svc-group">
         <h3 class="svc-group__title">${esc(g.name)}</h3>
         <ul class="svc-list">${rows}</ul>
       </div>`;
@@ -375,10 +446,28 @@ function servicesHtml(lang) {
     .join("");
   return `<section class="services" id="services">
     <div class="wrap">
-      <div class="sec-head reveal"><p class="eyebrow">${esc(t.label)}</p><h2>${esc(t.heading)}</h2></div>
-      <div class="svc-grid">${groups}</div>
-      <p class="svc-note reveal">${esc(t.note)}</p>
-      <div class="svc-cta reveal"><a href="${SITE.freshaUrl}" class="btn" target="_blank" rel="noopener" data-magnetic>${esc(t.book)} <span class="arr">→</span></a></div>
+      <div class="sec-head reveal">
+        <div><p class="eyebrow">${esc(t.label)}</p><h2>${esc(t.heading)}</h2></div>
+        <p>${esc(t.pickHint)}</p>
+      </div>
+      <div class="svc-grid" id="picker"
+        data-fresha="${SITE.freshaUrl}"
+        data-unit="${esc(t.min)}"
+        data-empty="${esc(t.totalEmpty)}"
+        data-open="${esc(bk.open)}"
+        data-sub="${esc(bk.barSub)}"
+        data-via="${esc(bk.barVia)}"
+        data-any="${esc(bk.anyService)}"
+        data-choose="${esc(bk.chooseOnFresha)}"
+        data-from="${esc(L[lang].hero.pill)}">${groups}</div>
+      <!-- Reads "Nothing ticked yet — —" until a row is picked. aria-live so the
+           running total is announced when it changes, since the change is the
+           whole point of the interaction. -->
+      <p class="svc-total" aria-live="polite">
+        <span class="svc-total__k" id="svc-total-k">${esc(t.totalEmpty)}</span>
+        <span class="svc-total__v metal num" id="svc-total-v">—</span>
+      </p>
+      <p class="sec-note">${esc(t.note)}</p>
     </div>
   </section>`;
 }
@@ -405,18 +494,22 @@ function productsHtml(lang) {
     const alt = `${p.brand} ${name} ${p.line} — ${type}`;
     const price = `€${productPrice(p)}`;
     const priceHtml = productIsFrom(p)
-      ? `<span class="prod__from">${esc(t.from)}</span> ${price}`
+      ? `<span class="prod__from">${esc(t.from)}</span>${price}`
       : price;
     const href = productUrl(p);
     // The whole card becomes a link only once a real product URL exists; until then it is
     // a plain <article> so nothing looks clickable that isn't.
     const tag = href ? "a" : "article";
     const attrs = href ? ` href="${href}" target="_blank" rel="noopener"` : "";
+    // The cut-out sits on a pool of gold light rather than a filled panel — the
+    // one place in the design where gold is unambiguously a light source.
+    // sizes reflects the real layout: two-up on the phone, a 116px thumbnail
+    // beside the copy from 960px.
     return `<${tag} class="prod"${attrs}>
       <div class="prod__shot">
         <img src="${img(`product-${p.img}-440.webp`)}"
              srcset="${img(`product-${p.img}-440.webp`)} 440w, ${img(`product-${p.img}-880.webp`)} 880w"
-             sizes="(max-width: 560px) 88vw, (max-width: 960px) 44vw, 340px"
+             sizes="(min-width: 60em) 116px, 44vw"
              alt="${esc(alt)}" width="880" height="880" loading="lazy" decoding="async">
       </div>
       <div class="prod__body">
@@ -424,24 +517,23 @@ function productsHtml(lang) {
         <h3 class="prod__name">${esc(name)}</h3>
         <p class="prod__meta">${esc(meta)}</p>
         <p class="prod__desc">${esc(t.desc[p.key])}</p>
-        <p class="prod__price">${priceHtml}</p>
+        <p class="prod__price num">${priceHtml}</p>
       </div>
     </${tag}>`;
   }).join("");
   // Fallback line while there is no shop URL: says plainly where the products are sold,
   // so nobody waits for a checkout that doesn't exist.
   const foot = shopUrl
-    ? `<div class="prod-cta reveal"><a href="${shopUrl}" class="btn" target="_blank" rel="noopener" data-magnetic>${esc(t.cta)} <span class="arr">→</span></a></div>`
-    : `<p class="prod-shopline reveal"><span class="prod-shopline__dot" aria-hidden="true"></span>${esc(t.inShop)}</p>`;
+    ? `<div class="prod-cta reveal"><a href="${shopUrl}" class="btn" target="_blank" rel="noopener">${esc(t.cta)} <span class="arr" aria-hidden="true">→</span></a></div>`
+    : `<p class="prod-shopline"><span class="prod-shopline__dot" aria-hidden="true"></span>${esc(t.inShop)}</p>`;
   return `<section class="products" id="products">
     <div class="wrap">
       <div class="sec-head reveal">
-        <p class="eyebrow">${esc(t.label)}</p>
-        <h2>${esc(t.heading)}</h2>
-        <p class="prod-intro">${esc(t.intro)}</p>
+        <div><p class="eyebrow">${esc(t.label)}</p><h2>${esc(t.heading)}</h2></div>
+        <p>${esc(t.intro)} <span class="prod-intro__shop">${esc(t.introShop)}</span></p>
       </div>
-      <div class="prod-grid" data-stagger>${cards}</div>
-      <p class="prod-note reveal">${esc(t.note)}</p>
+      <div class="prod-grid">${cards}</div>
+      <p class="sec-note">${esc(t.note)} ${esc(t.noteCodes)}</p>
       ${foot}
     </div>
   </section>`;
@@ -449,12 +541,16 @@ function productsHtml(lang) {
 
 function aboutHtml(lang) {
   const t = L[lang].about;
+  // The 3:4 portrait split and the gold-ruled pull-quote were the most finished
+  // block on the old site and are kept as they were. The portrait of the barber
+  // the redesign asks for has not been shot; until it is, the fade photograph
+  // holds the frame rather than a captioned placeholder.
   return `<section class="about" id="about">
     <div class="wrap about__grid">
-      <div class="about__media img-reveal" data-parallax="6"><img src="${img("haircut-fade.webp")}" alt="${esc(L[lang].gallery.alt)}" width="1080" height="1920" loading="lazy"></div>
-      <div class="about__text reveal">
-        <p class="eyebrow">${esc(t.label)}</p>
-        <h2>${esc(t.heading)}</h2>
+      <figure class="about__media img-reveal"><img src="${img("haircut-fade.webp")}" alt="${esc(L[lang].gallery.alt)}" width="1080" height="1920" loading="lazy" decoding="async"></figure>
+      <div class="about__text">
+        <p class="eyebrow reveal">${esc(t.label)}</p>
+        <h2 class="reveal">${esc(t.heading)}</h2>
         ${t.body.map((p) => `<p>${esc(p)}</p>`).join("")}
         <blockquote class="about__quote">${esc(t.quote)}<cite>${esc(t.quoteAuthor)}</cite></blockquote>
       </div>
@@ -462,22 +558,38 @@ function aboutHtml(lang) {
   </section>`;
 }
 
+/* ---------- Work ----------
+   One cell per GALLERY entry, so the block is composed at whatever material
+   exists instead of holding open slots for photographs nobody has taken. A
+   single-file scroll strip on the phone (a 16:9 loop cropped into a phone-width
+   cell is nothing), a mosaic from 960px.
+
+   width/height are the files' real intrinsic sizes, not the rendered box: the
+   browser reserves space from that ratio before the bytes arrive, and a wrong
+   value here is a layout shift. CSS aspect-ratio + object-fit crop the cell.
+
+   A video entry renders poster-first with preload="none", so no media byte is
+   requested until main.js calls play() — which it only does in view, and never
+   on save-data, 2g or reduced motion. */
 function galleryHtml(lang) {
   const t = L[lang].gallery;
-  // width/height are the files' real intrinsic sizes, not the rendered box. The browser
-  // reserves space from this ratio before the bytes arrive; a wrong ratio here is a layout
-  // shift, and CSS aspect-ratio + object-fit still crop the cell exactly as before.
-  const imgs = [
-    { src: img("interior.webp"), w: 1600, h: 906 },
-    { src: img("haircut-fade.webp"), w: 1080, h: 1920 },
-    { src: img("interior-bg.webp"), w: 1440, h: 1187 },
-  ];
-  const cells = imgs
-    .map((im, i) => `<figure class="gal__cell img-reveal${i === 0 ? " gal__cell--wide" : ""}"><img src="${im.src}" alt="${esc(t.alt)}" width="${im.w}" height="${im.h}" loading="lazy"></figure>`)
-    .join("");
+  const cells = GALLERY.map((g) => {
+    const cls = `gal__cell gal__cell--${g.span} gal__cell--r-${g.ratio.replace("/", "-")} img-reveal`;
+    const cap = t.captions[g.cap];
+    const media = g.video
+      ? `<video data-loop muted playsinline loop preload="none" poster="${img(g.img)}" width="${g.w}" height="${g.h}" aria-label="${esc(cap)}">
+           <source src="${img(g.video + ".webm")}" type="video/webm">
+           <source src="${img(g.video + ".mp4")}" type="video/mp4">
+         </video>`
+      : `<img src="${img(g.img)}" alt="${esc(cap)}" width="${g.w}" height="${g.h}" loading="lazy" decoding="async">`;
+    return `<figure class="${cls}">${media}<figcaption class="gal__cap">${esc(cap)}</figcaption></figure>`;
+  }).join("");
   return `<section class="gallery" id="gallery">
     <div class="wrap">
-      <div class="sec-head reveal"><p class="eyebrow">${esc(t.label)}</p><h2>${esc(t.heading)}</h2></div>
+      <div class="sec-head reveal">
+        <div><p class="eyebrow">${esc(t.label)}</p><h2>${esc(t.heading)}</h2></div>
+        <p>${esc(t.intro)}</p>
+      </div>
       <div class="gal__grid">${cells}</div>
     </div>
   </section>`;
@@ -496,47 +608,53 @@ function faqHtml(lang) {
         </details>`)
     .join("\n        ");
   return `<section class="faq" id="faq">
-    <div class="wrap">
-      <div class="sec-head reveal"><p class="eyebrow">${esc(t.label)}</p><h2>${esc(t.heading)}</h2></div>
-      <div class="faq__list reveal">
+    <div class="wrap faq__grid">
+      <div class="faq__head reveal"><p class="eyebrow">${esc(t.label)}</p><h2>${esc(t.heading)}</h2></div>
+      <div class="faq__list">
         ${items}
       </div>
     </div>
   </section>`;
 }
 
+// For a tourist this section is the whole product: where, when, how far. Three
+// cards on desktop — address, hours, map — stacked on the phone in that order,
+// because "where am I going" comes before "when are they open".
+//
+// The map stays a real grayscale-graded Google embed rather than the mockup's
+// placeholder tile: an embed that shows the street is worth more than a swatch,
+// and the privacy policy already declares the IP hand-off it causes.
 function visitHtml(lang) {
   const t = L[lang].visit;
-  const rows = t.hours.map((r) => `<tr><td>${esc(r[0])}</td><td>${esc(r[1])}</td></tr>`).join("");
+  const rows = t.hours.map((r) => `<tr><td>${esc(r[0])}</td><td class="num">${esc(r[1])}</td></tr>`).join("");
   const mapQ = encodeURIComponent(`${SITE.street}, ${SITE.postal} ${SITE.city}, Cyprus`);
   const addr = street(lang);
   return `<section class="visit" id="visit">
-    <div class="wrap visit__grid">
-      <div class="reveal">
-        <p class="eyebrow">${esc(t.label)}</p>
-        <h2>${esc(t.heading)}</h2>
-        <div class="visit__info">
-          <div class="visit__block">
-            <h3>${esc(t.addressLabel)}</h3>
-            <p>${esc(addr)}<br>${esc(SITE.district)}, ${esc(SITE.postal)} ${esc(SITE.city)}</p>
-            <a href="${SITE.googleProfile}" target="_blank" rel="noopener">${esc(L[lang].footer.reviews)} ↗</a>
-          </div>
-          <div class="visit__block">
-            <h3>${esc(t.contactLabel)}</h3>
-            <a href="tel:${SITE.phoneRaw}">${esc(SITE.phone)}</a>
-            <a href="${whatsappLink(lang)}" target="_blank" rel="noopener">WhatsApp ↗</a>
-            <a href="${SITE.instagram}" target="_blank" rel="noopener">Instagram ↗</a>
-          </div>
-          <div class="visit__block visit__block--wide">
-            <h3>${esc(t.hoursLabel)}</h3>
-            <table class="hours-table"><tbody>${rows}</tbody></table>
+    <div class="wrap">
+      <div class="sec-head reveal">
+        <div><p class="eyebrow">${esc(t.label)}</p><h2>${esc(t.heading)}</h2></div>
+        <p class="num">${esc(t.intro)}</p>
+      </div>
+      <div class="visit__grid">
+        <div class="visit__card">
+          <h3>${esc(t.addressLabel)}</h3>
+          <address><b>${esc(addr)}</b>${esc(SITE.district)}, ${esc(SITE.postal)} ${esc(SITE.city)}<br>Cyprus</address>
+          <div class="visit__actions">
+            <a href="tel:${SITE.phoneRaw}" class="btn btn--ghost num">${esc(SITE.phone)}</a>
+            <a href="${whatsappLink(lang)}" class="btn btn--ghost" target="_blank" rel="noopener">WhatsApp</a>
           </div>
         </div>
-        <div class="visit__cta"><a href="${SITE.freshaUrl}" class="btn" target="_blank" rel="noopener" data-magnetic>${esc(t.book)} <span class="arr">→</span></a></div>
-      </div>
-      <div class="map reveal">
-        <iframe title="Marino Barbero location map" loading="lazy" referrerpolicy="no-referrer-when-downgrade"
-          src="https://maps.google.com/maps?q=${mapQ}&z=16&output=embed"></iframe>
+        <div class="visit__card">
+          <h3>${esc(t.hoursLabel)}</h3>
+          <table class="hours-table"><tbody>${rows}</tbody></table>
+          <div class="visit__actions">
+            <a href="${SITE.googleProfile}" class="btn btn--ghost" target="_blank" rel="noopener">${esc(L[lang].footer.reviews)} <span aria-hidden="true">↗</span></a>
+          </div>
+        </div>
+        <div class="map">
+          <iframe title="${esc(SITE.brand)} — ${esc(t.label)}" loading="lazy" referrerpolicy="no-referrer-when-downgrade"
+            src="https://maps.google.com/maps?q=${mapQ}&z=16&output=embed"></iframe>
+        </div>
       </div>
     </div>
   </section>`;
@@ -544,55 +662,91 @@ function visitHtml(lang) {
 
 function footerHtml(lang) {
   const t = L[lang];
-  return `<footer class="footer">
-    <div class="wrap">
-      <div class="footer__top">
-        <div class="footer__brand">MARINO BARBERO<span>${esc(t.footer.tagline)}</span></div>
-        <div class="footer__links">
-          <a href="${SITE.freshaUrl}" target="_blank" rel="noopener">${esc(t.nav.book)}</a>
-          <a href="${whatsappLink(lang)}" target="_blank" rel="noopener">WhatsApp</a>
-          <a href="${SITE.instagram}" target="_blank" rel="noopener">Instagram</a>
-          <a href="${SITE.googleProfile}" target="_blank" rel="noopener">${esc(t.footer.reviews)}</a>
-          <a href="${subPath(lang, "privacy")}">${esc(t.footer.privacy)}</a>
-          <!-- The policy promises that consent can be withdrawn, so there has to be a way
-               to withdraw it: this clears the stored choice and brings the banner back.
-               A button, not a link — it performs an action and goes nowhere. -->
-          <button type="button" class="footer__reset" data-consent-reset>${esc(t.footer.cookies)}</button>
-        </div>
-      </div>
-      <div class="footer__bottom">
-        <span>© <span data-year>2026</span> ${esc(SITE.brandFull)}. ${esc(t.footer.rights)}</span>
-        <span>${esc(street(lang))}, ${esc(SITE.district)}, ${esc(SITE.city)}, Cyprus</span>
-        <span>${esc(t.footer.updated)} <time datetime="${BUILD_DATE}">${BUILD_DATE}</time></span>
-      </div>
+  // The other language is named in its own language ("Ελληνικά" / "English"),
+  // never as a flag or a code: a flag is a country, not a language.
+  const other = SITE.langs.filter((lg) => lg !== lang);
+  const otherLinks = other
+    .map((lg) => `<a href="${basePath(lg)}" hreflang="${hrefLangCode(lg)}" lang="${hrefLangCode(lg)}">${esc(L[lg].label)}</a>`)
+    .join("");
+  return `<footer class="footer wrap">
+    <div class="footer__brand">
+      ${hex}
+      <span>
+        <span class="footer__name">Marino <i class="metal">Barbero</i></span>
+        <span class="footer__tag">${esc(t.footer.tagline)}</span>
+      </span>
     </div>
+    <div class="footer__links">
+      <a href="${SITE.instagram}" target="_blank" rel="noopener">@marino_barbero</a>
+      <a href="${SITE.googleProfile}" target="_blank" rel="noopener">${esc(t.footer.reviews)}</a>
+      <a href="${subPath(lang, "privacy")}">${esc(t.footer.privacy)}</a>
+      <!-- The policy promises that consent can be withdrawn, so there has to be a way
+           to withdraw it: this clears the stored choice and brings the banner back.
+           A button, not a link — it performs an action and goes nowhere. -->
+      <button type="button" class="footer__reset" data-consent-reset>${esc(t.footer.cookies)}</button>
+      ${otherLinks}
+    </div>
+    <p class="footer__legal num">
+      <span>© <span data-year>2026</span> ${esc(SITE.brandFull)}. ${esc(t.footer.rights)}</span>
+      <span>${esc(street(lang))}, ${esc(SITE.district)}, ${esc(SITE.city)}, Cyprus</span>
+      <span>${esc(t.footer.updated)} <time datetime="${BUILD_DATE}">${BUILD_DATE}</time></span>
+    </p>
   </footer>`;
 }
 
-/* ---------- floating booking icon + slide-in panel (hands off to Fresha) ---------- */
+/* ---------- sticky booking bar + booking sheet ----------
+   Replaces the floating round fab and its `fabPulse`. A looped scale-and-fade to
+   draw the eye is the single most recognisable tell of generated UI, and the
+   brief names it: it is gone, and nothing on this page loops any more.
+
+   The bar sits in the thumb zone, holds the picked service if there is one, and
+   keeps WhatsApp beside it for the people who will not self-book. It enters once
+   when the hero scrolls away, on 200ms opacity + 8px, and never animates again.
+
+   Both the bar's book control and the hero's are <button data-sheet-open>, not
+   links: they open a panel on this page. The only <a> in the flow is the one that
+   actually leaves for Fresha, which is also the only click GA4 counts. */
+const WA_ICON = `<svg viewBox="0 0 24 24" fill="currentColor" width="22" height="22" aria-hidden="true"><path d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91c0 1.75.46 3.46 1.32 4.96L2 22l5.25-1.38a9.9 9.9 0 0 0 4.79 1.22h.01c5.46 0 9.91-4.45 9.91-9.91 0-2.65-1.03-5.14-2.9-7.01A9.82 9.82 0 0 0 12.04 2Zm0 18.15c-1.48 0-2.93-.4-4.2-1.15l-.3-.18-3.12.82.83-3.04-.2-.31a8.22 8.22 0 0 1-1.26-4.38c0-4.54 3.7-8.24 8.25-8.24 2.2 0 4.27.86 5.83 2.42a8.2 8.2 0 0 1 2.41 5.83c0 4.54-3.7 8.23-8.24 8.23Z"/></svg>`;
+
+function barHtml(lang) {
+  const bk = L[lang].booking;
+  return `<div class="bar" id="bar">
+    <button type="button" class="bar__book" data-sheet-open>
+      <span>
+        <span class="bar__title num" id="bar-title">${esc(bk.open)}</span>
+        <span class="bar__sub" id="bar-sub">${esc(bk.barVia)}</span>
+      </span>
+      <span class="arr" aria-hidden="true">→</span>
+    </button>
+    <a class="bar__wa" href="${whatsappLink(lang)}" target="_blank" rel="noopener" aria-label="WhatsApp">${WA_ICON}</a>
+  </div>`;
+}
+
 // The panel is a <div>, not an <aside>: the HTML spec allows neither role="dialog" nor
 // aria-modal on <aside>, and the W3C validator failed the page on both (CI-017 / TE-181).
 // The class carries all the styling, so the tag is invisible either way.
-function bookingHtml(lang) {
-  const t = L[lang], bk = t.booking, s = t.services;
-  const stars = "★★★★★";
-  const rows = SERVICES.map(
-    (sv) => `<li class="bk-svc"><span>${esc(s.names[sv.key])}</span><span class="bk-svc__price">€${sv.price}</span></li>`
-  ).join("");
-  const calIcon = `<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4.5" width="18" height="16.5" rx="2"/><path d="M3 9.5h18M8 2.5v4M16 2.5v4"/><path d="M8.5 14.5l2 2 4-4.5"/></svg>`;
-  return `<button class="book-fab" id="bk-open" aria-label="${esc(bk.open)}" aria-controls="bk-panel" aria-expanded="false" title="${esc(bk.open)}">${calIcon}</button>
-  <div class="bk-backdrop" data-bk-close></div>
-  <div class="bk-panel" id="bk-panel" role="dialog" aria-modal="true" aria-label="${esc(bk.title)}" aria-hidden="true">
-    <div class="bk-panel__head">
-      <div><p class="eyebrow">${esc(SITE.brand)}</p><h2 class="bk-title">${esc(bk.title)}</h2></div>
-      <button class="bk-close" data-bk-close aria-label="${esc(bk.close)}">✕</button>
-    </div>
-    <p class="bk-intro">${esc(bk.intro)}</p>
-    <div class="bk-rating"><span class="bk-rating__stars" aria-hidden="true">${stars}</span><span>${esc(t.proof.rating)} · ${esc(t.proof.count)}</span></div>
-    <ul class="bk-list">${rows}</ul>
-    <div class="bk-foot">
-      <a class="btn bk-go" href="${SITE.freshaUrl}" target="_blank" rel="noopener">${esc(bk.cta)} <span class="arr">→</span></a>
-      <span class="bk-via">${esc(bk.via)}</span>
+//
+// The resting state is honest about what the hand-off carries — "Any service /
+// Choose on Fresha / from €18" — rather than pretending a choice has been made.
+function sheetHtml(lang) {
+  const bk = L[lang].booking;
+  return `<div class="sheet" id="sheet" role="dialog" aria-modal="true" aria-label="${esc(bk.title)}" aria-hidden="true">
+    <button type="button" class="sheet__scrim" data-sheet-close tabindex="-1" aria-hidden="true"></button>
+    <div class="sheet__panel">
+      <button type="button" class="sheet__close" data-sheet-close aria-label="${esc(bk.close)}">✕</button>
+      <span class="sheet__grip" aria-hidden="true"></span>
+      <h2>${esc(bk.title)}</h2>
+      <p class="sheet__intro">${esc(bk.intro)}</p>
+      <div class="sheet__card">
+        <span class="sheet__row"><span class="sheet__k">${esc(bk.serviceLabel)}</span><span class="sheet__v" id="sheet-svc">${esc(bk.anyService)}</span></span>
+        <span class="sheet__row"><span class="sheet__k">${esc(bk.durLabel)}</span><span class="sheet__v num" id="sheet-dur">${esc(bk.chooseOnFresha)}</span></span>
+        <span class="sheet__row sheet__row--total"><span class="sheet__k">${esc(bk.totalLabel)}</span><span class="sheet__total num" id="sheet-total">${esc(L[lang].hero.pill)}</span></span>
+      </div>
+      <div class="sheet__actions">
+        <a class="btn" id="sheet-go" href="${SITE.freshaUrl}" target="_blank" rel="noopener">${esc(bk.cta)} <span class="arr" aria-hidden="true">→</span></a>
+        <a class="btn btn--ghost" href="${whatsappLink(lang)}" target="_blank" rel="noopener">${esc(bk.whatsappAlt)}</a>
+      </div>
+      <p class="sheet__via">${esc(bk.via)}</p>
     </div>
   </div>`;
 }
@@ -600,15 +754,16 @@ function bookingHtml(lang) {
 /* ---------- cookie consent banner (only when GA4 is on) ---------- */
 // Hidden by default (hidden attr); main.js reveals it when no prior choice is stored.
 // Buttons carry data-consent-* hooks; main.js wires them to gtag consent update.
+//
+// It lifts by var(--bar-h) so it clears the sticky bar. That replaces the old
+// hard-coded 4.4rem, which was measured against a fab that no longer exists.
 function consentHtml(lang) {
   if (!SITE.ga4) return "";
   const c = L[lang].consent;
   return `<div class="consent" id="consent" role="dialog" aria-live="polite" aria-label="${esc(c.aria)}" hidden>
     <p class="consent__text">${esc(c.text)}</p>
-    <div class="consent__actions">
-      <button type="button" class="btn btn--ghost consent__btn" data-consent-decline>${esc(c.decline)}</button>
-      <button type="button" class="btn consent__btn" data-consent-accept>${esc(c.accept)}</button>
-    </div>
+    <button type="button" class="btn btn--ghost consent__btn" data-consent-decline>${esc(c.decline)}</button>
+    <button type="button" class="btn consent__btn" data-consent-accept>${esc(c.accept)}</button>
   </div>`;
 }
 
@@ -624,6 +779,21 @@ function gaHead() {
   return `
   <script async src="https://www.googletagmanager.com/gtag/js?id=${encodeURIComponent(SITE.ga4)}"></script>
   <script>${gaInline(SITE.ga4, SITE.ads)}</script>`;
+}
+
+/* ---------- display font preload ----------
+   Only on the pages and in the language that can actually use the file. Playfair
+   has no Greek, so /el/ would download 31KB and render none of it — the Greek
+   pages get Georgia and no preload at all. `font-display: block` means the
+   headline waits for these bytes, which is exactly why they are preloaded rather
+   than discovered when the CSS is parsed.
+   crossorigin is required on a font preload even same-origin: without it the
+   browser fetches the file twice, once for the preload and once for the face. */
+function fontPreload(lang) {
+  if (lang !== "en") return "";
+  return Object.values(FONTS)
+    .map((f) => `<link rel="preload" as="font" type="font/woff2" href="${font(f)}" crossorigin>`)
+    .join("\n  ");
 }
 
 /* ---------- <head> with full SEO ---------- */
@@ -642,8 +812,7 @@ function headHtml(lang, page) {
   // follows the demand (English), not the site's root language. See SITE.xDefaultLang.
   const xDefault = page ? subUrl(SITE.xDefaultLang, page.slug) : pageUrl(SITE.xDefaultLang);
   return `<meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <script>${INLINE_JS_CLASS}</script>${gaHead()}
+  <meta name="viewport" content="width=device-width, initial-scale=1">${gaHead()}
   <title>${esc(title)}</title>
   <meta name="description" content="${esc(description)}">
   <link rel="canonical" href="${url}">
@@ -674,7 +843,8 @@ function headHtml(lang, page) {
   <meta name="twitter:title" content="${esc(title)}">
   <meta name="twitter:description" content="${esc(description)}">
   <meta name="twitter:image" content="${SITE.domain}${img("og-cover.jpg")}">
-  ${page ? "" : `<link rel="preload" as="image" href="${img("interior-bg.webp")}" fetchpriority="high">`}
+  ${page ? "" : `<link rel="preload" as="image" href="${img("interior.webp")}" fetchpriority="high">`}
+  ${fontPreload(lang)}
   <link rel="stylesheet" href="${ASSETS.css}">
   <link rel="icon" href="${img("favicon.svg")}" type="image/svg+xml">
   ${jsonLd(lang)}
@@ -696,24 +866,22 @@ function renderPage(lang) {
   ${headHtml(lang)}
 </head>
 <body>
-  <div class="cursor" aria-hidden="true"></div><div class="cursor-dot" aria-hidden="true"></div>
-  ${navHtml(lang)}
   <main>
+    <!-- The nav is emitted inside .hero so it can sit over the photograph without
+         a second stacking context; the hero is the only section it overlaps. -->
     ${heroHtml(lang)}
-    ${proofHtml(lang)}
-    ${marqueeHtml(lang)}
+    ${fadeHtml(lang)}
     ${servicesHtml(lang)}
-    ${productsHtml(lang)}
-    ${aboutHtml(lang)}
     ${galleryHtml(lang)}
+    ${aboutHtml(lang)}
+    ${productsHtml(lang)}
     ${visitHtml(lang)}
     ${faqHtml(lang)}
   </main>
   ${footerHtml(lang)}
-  ${bookingHtml(lang)}
+  ${barHtml(lang)}
+  ${sheetHtml(lang)}
   ${consentHtml(lang)}
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js" defer integrity="sha384-g4NTh/Iv5PPU4xPyhEWqPcwtNXOvdaDI8LLnyYfyNZOjKJeYQyjzQ9X5275eBjpt" crossorigin="anonymous"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js" defer integrity="sha384-Z3REaz79l2IaAZqJsSABtTbhjgOUYyV3p90XNnAPCSHg3EMTz1fouunq9WZRtj3d" crossorigin="anonymous"></script>
   <script src="${ASSETS.js}" defer></script>
 </body>
 </html>`;
@@ -738,39 +906,53 @@ function privacyPage(lang) {
     description: pv.metaDescription,
     crumb: pv.title,
   };
-  const langSwitch = SITE.langs
-    .map((lg) => `<a href="${subPath(lg, "privacy")}" hreflang="${hrefLangCode(lg)}" class="${lg === lang ? "active" : ""}" aria-label="${esc(L[lg].label)}">${lg.toUpperCase()}</a>`)
-    .join("");
   const sections = pv.sections
     .map((sec) => `<section class="legal__sec">
           <h2>${esc(sec.h)}</h2>
           ${sec.p.map((x) => `<p>${esc(x)}</p>`).join("\n          ")}
         </section>`)
     .join("\n        ");
+  // Short answers above the legal text. Cards, not a <dl> in a panel: the
+  // question is the thing being scanned, so it gets display type and its own box.
+  const glance = pv.glance
+    .map(([q, a]) => `<div class="glance__item"><p class="glance__q">${esc(q)}</p><p class="glance__a">${esc(a)}</p></div>`)
+    .join("\n          ");
 
   return `<!DOCTYPE html>
 <html lang="${t.htmlLang}" dir="${t.dir}">
 <head>
   ${headHtml(lang, page)}
 </head>
-<body>
-  <header class="nav nav--min nav--solid" aria-label="${esc(SITE.brand)}">
-    <a class="nav__logo" href="${basePath(lang)}" aria-label="${esc(SITE.brandFull)}">MARINO<em>BARBERO</em></a>
-    <div class="lang" role="group" aria-label="Language">${langSwitch}</div>
+<body class="no-bar">
+  <header class="nav nav--solid" aria-label="${esc(SITE.brand)}">
+    <a class="nav__back" href="${basePath(lang)}">← ${esc(t.breadcrumb.home)}</a>
+    <div class="lang" role="group" aria-label="Language">${langSwitchHtml(lang, (lg) => subPath(lg, "privacy"))}</div>
   </header>
   <main class="legal">
-    <div class="wrap legal__inner">
-      ${crumbsHtml(lang, pv.title)}
-      <h1>${esc(pv.title)}</h1>
-      <p class="legal__updated">${esc(pv.updatedLabel)}: <time datetime="${BUILD_DATE}">${BUILD_DATE}</time></p>
-      <p class="legal__intro">${esc(pv.intro)}</p>
-      <section class="glance">
-        <h2>${esc(pv.glanceLabel)}</h2>
-        <dl>
-          ${pv.glance.map(([q, a]) => `<dt>${esc(q)}</dt><dd>${esc(a)}</dd>`).join("\n          ")}
-        </dl>
-      </section>
-      ${sections}
+    <div class="wrap legal__grid">
+      <!-- Sticky title column on desktop: eight sections of legal text is a long
+           way to scroll without being told what you are reading. -->
+      <div class="legal__head">
+        ${crumbsHtml(lang, pv.title)}
+        ${hex}
+        <h1>${esc(pv.title)}</h1>
+        <p class="legal__updated num">${esc(pv.updatedLabel)} · <time datetime="${BUILD_DATE}">${BUILD_DATE}</time></p>
+        <div class="legal__aside">
+          <button type="button" class="btn btn--ghost" data-consent-reset>${esc(t.footer.cookies)}</button>
+          <a href="tel:${SITE.phoneRaw}" class="btn btn--ghost num">${esc(SITE.phone)}</a>
+        </div>
+      </div>
+      <div class="legal__body">
+        <p class="legal__intro">${esc(pv.intro)}</p>
+        <p class="eyebrow glance__label">${esc(pv.glanceLabel)}</p>
+        <div class="glance">
+          ${glance}
+        </div>
+        <div class="legal__secs">
+          ${sections}
+        </div>
+        <p class="legal__nap num">${esc(SITE.brandFull)} · ${esc(street(lang))}, ${esc(SITE.district)}, ${esc(SITE.postal)} ${esc(SITE.city)}, Cyprus · ${esc(SITE.phone)}</p>
+      </div>
     </div>
   </main>
   ${footerHtml(lang)}
@@ -794,33 +976,31 @@ function notFoundHtml(lang) {
   const t = L[lang];
   const nf = t.notFound;
   const b = basePath(lang);
-  const langSwitch = SITE.langs
-    .map((lg) => `<a href="${basePath(lg)}" hreflang="${hrefLangCode(lg)}" class="${lg === lang ? "active" : ""}" aria-label="${esc(L[lg].label)}">${lg.toUpperCase()}</a>`)
-    .join("");
   return `<!DOCTYPE html>
 <html lang="${t.htmlLang}" dir="${t.dir}">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <script>${INLINE_JS_CLASS}</script>${gaHead()}
+  <meta name="viewport" content="width=device-width, initial-scale=1">${gaHead()}
   <title>${esc(nf.title)} · ${esc(SITE.brand)}</title>
   <meta name="robots" content="noindex, follow">
   <meta name="theme-color" content="#100f0d">
+  ${fontPreload(lang)}
   <link rel="stylesheet" href="${ASSETS.css}">
   <link rel="icon" href="${img("favicon.svg")}" type="image/svg+xml">
 </head>
-<body class="nf-body">
-  <header class="nav nav--min" aria-label="${esc(SITE.brand)}">
-    <a class="nav__logo" href="${b}" aria-label="${esc(SITE.brandFull)}">MARINO<em>BARBERO</em></a>
-    <div class="lang" role="group" aria-label="Language">${langSwitch}</div>
+<body class="nf-body no-bar">
+  <header class="nav nav--solid" aria-label="${esc(SITE.brand)}">
+    <a class="nav__logo" href="${b}" aria-label="${esc(SITE.brandFull)}">${esc(SITE.brand)}</a>
+    <div class="lang" role="group" aria-label="Language">${langSwitchHtml(lang, basePath)}</div>
   </header>
   <main class="notfound">
-    <div class="wrap notfound__inner">
-      <p class="notfound__code" aria-hidden="true">${esc(nf.code)}</p>
+    <div class="notfound__inner">
+      ${hex}
+      <p class="notfound__code num" aria-hidden="true">${esc(nf.code)}</p>
       <h1 class="notfound__title">${esc(nf.heading)}</h1>
       <p class="notfound__text">${esc(nf.text)}</p>
       <div class="notfound__actions">
-        <a href="${b}" class="btn">${esc(nf.home)} <span class="arr">→</span></a>
+        <a href="${b}" class="btn">${esc(nf.home)} <span class="arr" aria-hidden="true">→</span></a>
         <a href="${SITE.freshaUrl}" class="btn btn--ghost" target="_blank" rel="noopener">${esc(nf.book)}</a>
       </div>
     </div>
@@ -941,13 +1121,13 @@ function llmsTxt() {
 > Men's barber shop in Kato Paphos, Cyprus. Fades, classic cuts and beard care, booked
 > online. Rated ${SITE.rating.value} from ${SITE.rating.count} Google reviews. Greek and English spoken.
 
-Two pages, same shop, one in each language. There is no blog, no online store and nothing
-ships: the products listed below are sold over the counter, and the only transaction on
-this site is an appointment.
+Two pages, same shop, one in each language — English at the root, Greek at /el/. There is
+no blog, no online store and nothing ships: the products listed below are sold over the
+counter, and the only transaction on this site is an appointment.
 
 ## Pages
-- [${SITE.brand} — Greek](${SITE.domain}/): ${L.el.meta.description}
-- [${SITE.brand} — English](${SITE.domain}/en/): ${L.en.meta.description}
+- [${SITE.brand} — English](${pageUrl("en")}): ${L.en.meta.description}
+- [${SITE.brand} — Greek](${pageUrl("el")}): ${L.el.meta.description}
 - [Privacy policy](${subUrl("en", "privacy")}): what the site measures, who receives it, how to withdraw consent ([Greek](${subUrl("el", "privacy")}))
 
 ## Visit
@@ -1001,8 +1181,8 @@ function headersFile() {
   const on = Boolean(SITE.ga4);
   // Google Ads rides on the GA4 tag, so it can only be on when analytics is.
   const ads = on && Boolean(SITE.ads);
-  // Inline scripts we must allow-list: the js-class flag, plus the gtag config when on.
-  const inlineHashes = [cspHash(INLINE_JS_CLASS), ...(on ? [cspHash(gaInline(SITE.ga4, SITE.ads))] : [])];
+  // The only inline script left is the gtag config, and only when analytics is on.
+  const inlineHashes = on ? [cspHash(gaInline(SITE.ga4, SITE.ads))] : [];
   // gtag.js itself comes from googletagmanager.com for both products, but the Ads half
   // pulls a further script from googleadservices.com for the conversion linker.
   //
@@ -1039,7 +1219,11 @@ function headersFile() {
   // back to an image pixel, which carries less than the script does. Same trust tier as
   // googletagmanager and googleadservices — all three are Google-operated and all three
   // are here only because the Ads account is live.
-  const scriptSrc = ["'self'", "https://cdnjs.cloudflare.com", ...(on ? ["https://www.googletagmanager.com"] : []), ...(ads ? ["https://www.googleadservices.com", "https://googleads.g.doubleclick.net"] : []), ...inlineHashes];
+  //
+  // cdnjs.cloudflare.com was removed in the 2026-08 redesign along with GSAP: the
+  // motion layer is CSS now, so the page loads no third-party script except the
+  // Google tag, and only when analytics is switched on.
+  const scriptSrc = ["'self'", ...(on ? ["https://www.googletagmanager.com"] : []), ...(ads ? ["https://www.googleadservices.com", "https://googleads.g.doubleclick.net"] : []), ...inlineHashes];
   // GA4 sends hits (and loads gtag) from these origins; Google may route via any of them.
   const gaConnect = ["https://*.google-analytics.com", "https://*.googletagmanager.com", "https://*.analytics.google.com"];
   const connectSrc = ["'self'", ...(on ? gaConnect : []), ...(ads ? adsOrigins : [])];
@@ -1053,7 +1237,12 @@ function headersFile() {
     // (element.style.prop), which CSP does not gate — so 'unsafe-inline' is unnecessary.
     "style-src 'self'",
     `img-src ${imgSrc.join(" ")}`,
+    // The display face is self-hosted, so this stays at 'self' — no Google Fonts
+    // origin, no third-party font request, nothing to add when the subset changes.
     "font-src 'self'",
+    // Only present once a Work cell actually carries a loop (GALLERY entries with
+    // `video`). Until then there is no media to play and no directive to write.
+    ...(hasVideo ? ["media-src 'self'"] : []),
     "frame-src https://www.google.com https://maps.google.com",
     `connect-src ${connectSrc.join(" ")}`,
     "base-uri 'none'",
@@ -1084,9 +1273,32 @@ function build() {
   rmrf(DIST);
   mkdir(DIST);
 
+  // Fonts before CSS: the stylesheet's @font-face src has to name the hashed
+  // filenames, so the files must exist and be fingerprinted first.
+  const fontOut = path.join(DIST, "assets", "fonts");
+  const fontSrc = path.join(SRC, "fonts");
+  for (const file of Object.values(FONTS)) {
+    const p = path.join(fontSrc, file);
+    if (!fs.existsSync(p)) throw new Error(`Missing display font: src/fonts/${file}`);
+    const buf = fs.readFileSync(p);
+    const ext = path.extname(file);
+    const hashed = `${file.slice(0, -ext.length)}.${hash8(buf)}${ext}`;
+    write(path.join(fontOut, hashed), buf);
+    FONT_URL[file] = `/assets/fonts/${hashed}`;
+  }
+
   // Hash + write CSS/JS first so the pages can reference the fingerprinted URLs.
   // Minify before hashing: the hash has to describe the bytes that actually ship.
-  const cssSrc = fs.readFileSync(path.join(SRC, "css", "styles.css"), "utf8");
+  //
+  // The font placeholders are substituted here rather than in the stylesheet so
+  // that styles.css stays a plain, editable file that opens correctly in a
+  // browser on its own. Every placeholder must resolve — an unreplaced token
+  // would ship a 404 in a @font-face and take the display type down silently.
+  let cssSrc = fs.readFileSync(path.join(SRC, "css", "styles.css"), "utf8");
+  for (const [token, file] of Object.entries(FONTS)) {
+    if (!cssSrc.includes(token)) throw new Error(`styles.css no longer references ${token}`);
+    cssSrc = cssSrc.split(token).join(font(file));
+  }
   const cssBuf = Buffer.from(minifyCss(cssSrc));
   const jsBuf = fs.readFileSync(path.join(SRC, "js", "main.js"));
   const cssName = `styles.${hash8(cssBuf)}.css`;

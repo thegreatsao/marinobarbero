@@ -6,8 +6,29 @@
 [build.environment]
   NODE_VERSION = "20"
 
-# Pretty URL: serve /en/ index.html on the trailing-slash path
+# --- Language flip, 2026-08 -------------------------------------------------
+# English moved from /en/ to the root and Greek from the root to /el/ (see
+# SITE.langs in content/content.js for the numbers behind that). These two rules
+# retire the old English URLs, which are the ones with accumulated impressions.
+#
+# There is deliberately NO rule for the old Greek URLs: they were "/" and
+# "/privacy/", which are now the English pages. Nothing can 301 them without
+# breaking the new root. Google finds /el/ through hreflang and the sitemap,
+# both of which are emitted consistently by build.js.
+#
+# DO NOT add a "/en -> /en/" style rule, and do not add a force flag ("!") to
+# anything below. Two Netlify behaviours combine to make that a redirect loop:
+#   1. Netlify normalises the trailing slash before matching, so `from = "/en"`
+#      matches BOTH /en and /en/ — a destination can match its own source.
+#   2. The force flag makes a rule win over an existing static file, so the file
+#      never gets a chance to be served and the 301 fires forever.
+# That exact pair took the site down once with ERR_TOO_MANY_REDIRECTS.
 [[redirects]]
   from = "/en"
-  to = "/en/"
+  to = "/"
+  status = 301
+
+[[redirects]]
+  from = "/en/*"
+  to = "/:splat"
   status = 301

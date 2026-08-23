@@ -1,6 +1,6 @@
 # Build output — regenerate with: node build.js
 dist/
-marino-barbero-dist.zip
+marino-barbero-dist*.zip
 
 # One-time bootstrap helper — not part of the project
 push-to-github.sh

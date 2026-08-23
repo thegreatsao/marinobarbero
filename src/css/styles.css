@@ -1,8 +1,73 @@
 /* =========================================================================
    Marino Barbero — The Barber Shop
-   Dark charcoal + gold. Serif headings (Georgia), system sans body.
-   Premium, warm, understated. No web fonts → fast.
+   "Hexagon light" — the 2026-08 redesign, built from the resolved Claude Design
+   mockups (directions 1c / 1d / 2a / 2b).
+
+   Dark charcoal + gold. One display face (Playfair Display, self-hosted subset,
+   >=1.5rem only); body text stays on the system sans stack, which costs nothing
+   and is genuinely good at 17px.
+
+   Mobile first, because the traffic is: 90% of sessions and 1660 of 1852 search
+   impressions are phones. Every layout here starts at 390 and grows.
+
+   Two font URLs are written by build.js — the placeholders below are replaced
+   with the content-hashed paths before the file is minified and hashed itself,
+   so the immutable one-year cache on /assets/* stays safe.
    ========================================================================= */
+
+/* ---------------------------------------------------------------------------
+   Display face. Variable source pinned to wght 500 — the only weight the design
+   uses — and subset to the characters that actually appear in display type
+   (ASCII + « » · € – — ‘ ’ “ ”). 15.4KB + 15.9KB = 31.4KB, inside the 35KB
+   budget with the italic kept.
+
+   Playfair has NO Greek coverage, so the unicode-range below simply does not
+   match Greek text: /el/ falls through to "Playfair Fallback" (Georgia with
+   matched metrics) and renders its display type in Georgia. That is deliberate,
+   not a gap — see SITE.langs in content.js.
+   --------------------------------------------------------------------------- */
+@font-face {
+  font-family: "Playfair Display";
+  src: url("__FONT_LATIN__") format("woff2");
+  font-weight: 500;
+  font-style: normal;
+  font-display: block;          /* display-only face — no body text waits on it */
+  unicode-range: U+0020-007E, U+00A0, U+00AB, U+00BB, U+00B7, U+00D7, U+2013, U+2014, U+2018, U+2019, U+201C, U+201D, U+2026, U+2039, U+203A, U+20AC, U+2122;
+}
+@font-face {
+  font-family: "Playfair Display";
+  src: url("__FONT_ITALIC__") format("woff2");
+  font-weight: 500;
+  font-style: italic;
+  font-display: block;
+  unicode-range: U+0020-007E, U+00A0, U+00AB, U+00BB, U+00B7, U+00D7, U+2013, U+2014, U+2018, U+2019, U+201C, U+201D, U+2026, U+2039, U+203A, U+20AC, U+2122;
+}
+
+/* Metric-matched fallback, so the swap moves nothing and the display font
+   contributes zero CLS. size-adjust is the median width ratio of the actual
+   display strings, measured in a browser with kerning applied.
+
+   The italic face is declared separately rather than left to synthesis: on /el/
+   every italic display word resolves to this family (Playfair has no Greek), and
+   a real Georgia Italic is better than an obliqued upright. */
+@font-face {
+  font-family: "Playfair Fallback";
+  src: local("Georgia");
+  font-style: normal;
+  size-adjust: 102.0%;
+  ascent-override: 106.1%;
+  descent-override: 24.6%;
+  line-gap-override: 0%;
+}
+@font-face {
+  font-family: "Playfair Fallback";
+  src: local("Georgia Italic"), local("Georgia");
+  font-style: italic;
+  size-adjust: 102.0%;
+  ascent-override: 106.1%;
+  descent-override: 24.6%;
+  line-gap-override: 0%;
+}
 
 :root {
   --gold: #c9a24b;
@@ -16,415 +81,1031 @@
   --stone: #b9b1a6;
   --stone-dim: #8b8378;
 
-  --serif: Georgia, "Times New Roman", "Playfair Display", serif;
+  /* --serif and --r are the design system's published tokens and are kept whole
+     even though this build reaches Georgia through --display's fallback chain and
+     rounds cards with --r-card. A partial token set is worse than an unused one. */
+  --serif: Georgia, "Times New Roman", serif;
   --sans: "Helvetica Neue", Arial, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
 
-  --wrap: 1200px;
-  --pad: clamp(1.2rem, 5vw, 3rem);
+  /* One display face, weight 500, never below 1.5rem, never on body text. */
+  --display: "Playfair Display", "Playfair Fallback", Georgia, "Times New Roman", serif;
+
+  /* Gold as light, not fill. oklch interpolation keeps the midpoint clean — an
+     rgb ramp between the same two golds goes muddy grey-green in the middle.
+     Used on the 5.0 score, one display word per section, and hairline rules.
+     Never on body text. */
+  --metal: linear-gradient(100deg, oklch(0.60 0.085 68), oklch(0.90 0.095 96) 42%, oklch(0.70 0.10 82) 78%, oklch(0.58 0.08 66));
+
+  /* Height of the sticky booking bar. The consent banner reads this to sit clear
+     of it, replacing the hard-coded 4.4rem lift the old fab needed. */
+  --bar-h: 72px;
+
+  /* Section rhythm. Endpoints are the mockup's measured values: 30px of padding
+     at 390, 78px at 1440. The design system ships a wider --sec; these are the
+     numbers the resolved artboards actually use. */
+  --sec: clamp(1.9rem, 8vw, 4.9rem);
+
+  /* 1440 is the desktop artboard, and --pad resolves to its 48px gutter there
+     and to the mobile 18px at 390 — so the page is edge-to-edge at both sizes
+     rather than centred inside a narrower column. */
+  --wrap: 1440px;
+  --pad: clamp(1.125rem, 3.4vw, 3rem);
+
   --r: 4px;
+  --r-card: 14px;
   --ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --nav-h: 52px;
 }
 
-* { box-sizing: border-box; margin: 0; padding: 0; }
+*, *::before, *::after { box-sizing: border-box; }
+* { margin: 0; padding: 0; }
 
-html { scroll-behavior: smooth; -webkit-text-size-adjust: 100%; }
+html {
+  scroll-behavior: smooth;
+  -webkit-text-size-adjust: 100%;
+  background: var(--ink);
+}
 @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+
+/* Cheap, native, progressive: cross-document view transitions on the language
+   switch and the privacy link. Nothing breaks where unsupported. */
+@view-transition { navigation: auto; }
 
 body {
   background: var(--ink);
   color: var(--cream);
   font-family: var(--sans);
-  font-size: 17px;
-  line-height: 1.65;
+  font-size: 16px;
+  line-height: 1.6;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
   overflow-x: hidden;
 }
+@media (min-width: 60em) { body { font-size: 18px; line-height: 1.65; } }
 
 img { max-width: 100%; display: block; }
 a { color: inherit; text-decoration: none; }
+table { border-collapse: collapse; width: 100%; }
 
-h1, h2, h3 { font-family: var(--serif); font-weight: 500; line-height: 1.05; letter-spacing: -0.01em; }
-h2 { font-size: clamp(2rem, 5vw, 3.4rem); }
-h3 { font-size: 1.25rem; }
+/* One focus treatment for the whole page: a gold ring that clears the box.
+   :focus-visible only, so a tap never paints it. */
+:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; border-radius: 2px; }
+
+h1, h2, h3 {
+  font-family: var(--display);
+  font-weight: 500;
+  line-height: 1;
+  letter-spacing: -0.035em;
+  text-wrap: balance;
+}
+p { text-wrap: pretty; }
 
 .wrap { width: 100%; max-width: var(--wrap); margin-inline: auto; padding-inline: var(--pad); }
 
-/* 0.78rem = 12.5px. Everything in this file that sets an uppercase micro-label used to
-   sit between 10.6 and 11.5px, which Google counts as unreadable (CN-034). The tracking
-   is pulled in slightly to keep the same line length at the larger size. */
+/* Every anchored section clears the sticky nav. */
+section[id] { scroll-margin-top: calc(var(--nav-h) + 8px); }
+
+/* 0.78rem = 12.5px, the floor for an uppercase micro-label. Nothing in this
+   file sets one smaller. */
 .eyebrow {
   font-family: var(--sans);
   font-size: 0.78rem;
-  letter-spacing: 0.22em;
+  letter-spacing: 0.18em;
   text-transform: uppercase;
   color: var(--gold);
-  margin-bottom: 1rem;
+}
+@media (min-width: 60em) { .eyebrow { font-size: 0.8125rem; letter-spacing: 0.2em; } }
+
+/* Figures are set, not listed: lining numerals everywhere they are read as a
+   price, a time or a rating. */
+.num { font-variant-numeric: lining-nums tabular-nums; }
+
+/* Gold as material. color:transparent is only ever applied where the clip is
+   supported, so the text can never vanish. */
+.metal { background: var(--gold-soft); }
+@supports (background-clip: text) or (-webkit-background-clip: text) {
+  .metal {
+    background: var(--metal);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
 }
 
-.sec-head { margin-bottom: clamp(2rem, 5vw, 3.5rem); max-width: 40ch; }
+/* The brand's visual signature — the hexagon of the interior lamps. */
+.hex {
+  display: block;
+  flex: none;
+  width: 26px;
+  height: 29px;
+  background: var(--gold-soft);
+  background: var(--metal);
+  clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%);
+}
+@media (min-width: 60em) { .hex { width: 30px; height: 34px; } }
 
 /* ---------- buttons ---------- */
 .btn {
-  --bg: var(--gold);
-  display: inline-flex; align-items: center; gap: 0.55em;
-  background: var(--bg);
-  color: var(--ink);
-  font-family: var(--sans);
-  font-weight: 600;
-  font-size: 0.9rem;
-  letter-spacing: 0.02em;
-  padding: 0.95em 1.6em;
-  border-radius: var(--r);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.625rem;
+  min-height: 54px;
+  padding: 0 1.375rem;
+  background: var(--gold);
   border: 1px solid var(--gold);
+  border-radius: 99px;
+  color: var(--ink);
+  font: 600 0.9375rem var(--sans);
   cursor: pointer;
-  transition: background 0.35s var(--ease), color 0.35s var(--ease), transform 0.2s var(--ease);
-  will-change: transform;
+  transition: background 0.35s var(--ease), border-color 0.35s var(--ease);
 }
-.btn:hover { background: var(--gold-soft); }
+.btn:hover { background: var(--gold-soft); border-color: var(--gold-soft); color: var(--ink); }
 .btn .arr { transition: transform 0.35s var(--ease); }
 .btn:hover .arr { transform: translateX(4px); }
-.btn--ghost { background: transparent; color: var(--cream); border-color: rgba(243, 237, 227, 0.35); }
-.btn--ghost:hover { background: rgba(243, 237, 227, 0.08); border-color: var(--cream); }
-.btn--nav { padding: 0.7em 1.2em; font-size: 0.82rem; white-space: nowrap; min-height: 48px; }
+.btn--ghost { background: transparent; border-color: rgba(243, 237, 227, 0.3); color: var(--cream); }
+.btn--ghost:hover { background: rgba(243, 237, 227, 0.07); border-color: rgba(243, 237, 227, 0.55); color: var(--cream); }
+@media (min-width: 60em) { .btn { min-height: 58px; padding: 0 1.75rem; font-size: 1rem; } }
 
-/* ---------- nav ---------- */
+.pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.375rem 0.625rem;
+  border: 1px solid var(--line);
+  border-radius: 99px;
+  font-size: 0.78rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--cream);
+}
+@media (min-width: 60em) { .pill { padding: 0.5625rem 1rem; font-size: 0.875rem; } }
+
+/* ---------- section heads ----------
+   Asymmetric on desktop: the head sits in the narrower column and the standfirst
+   in the wider one, both baseline-aligned to the bottom of the heading. */
+.sec-head { margin-bottom: clamp(1.125rem, 3vw, 2.125rem); }
+.sec-head h2 { margin-top: 0.625rem; font-size: clamp(2.125rem, 8vw, 3.875rem); }
+.sec-head p { margin-top: 0.75rem; color: var(--stone); font-size: 0.96875rem; }
+@media (min-width: 60em) {
+  .sec-head { display: grid; grid-template-columns: 0.9fr 1.1fr; gap: 3rem; align-items: end; }
+  .sec-head h2 { margin-top: 0.75rem; }
+  .sec-head p { margin: 0 0 0.375rem; max-width: 50ch; font-size: 1rem; }
+}
+
+.sec-note { margin-top: 1rem; font-size: 0.78rem; line-height: 1.7; color: var(--stone-dim); max-width: 70ch; }
+
+/* =========================================================================
+   Nav — sticky, transparent over the hero photograph, solid elsewhere.
+   No burger: the mobile artboard carries the brand and the language switch and
+   nothing else. The sections are a scroll away, not a menu away.
+   ========================================================================= */
 .nav {
-  position: fixed; inset: 0 0 auto 0; z-index: 60;
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 1.1rem var(--pad);
-  transition: background 0.4s var(--ease), padding 0.4s var(--ease), border-color 0.4s var(--ease);
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  width: 100%;
+  max-width: var(--wrap);
+  margin-inline: auto;
+  padding-inline: var(--pad);
+  background: transparent;
   border-bottom: 1px solid transparent;
 }
-.nav.scrolled {
-  background: rgba(16, 15, 13, 0.86);
-  backdrop-filter: blur(12px);
-  padding-block: 0.7rem;
-  border-bottom-color: var(--line);
-}
-/* Every rule below that reaches for 48px is doing the same thing: Google's tap-target
-   floor is 48x48 CSS px and 22 controls on this page were under it (MB-103, MB-101).
-   The text keeps its size — only the box around it grows. */
 .nav__logo {
-  font-family: var(--serif);
-  font-size: 1.15rem;
-  letter-spacing: 0.16em;
-  color: var(--cream);
-  display: flex; gap: 0.4em; align-items: center; min-height: 48px;
-}
-.nav__logo em { color: var(--gold); font-style: normal; }
-.nav__menu { display: flex; align-items: center; gap: clamp(1rem, 2.5vw, 2.2rem); }
-.nav__links { display: flex; gap: clamp(1rem, 2vw, 1.9rem); }
-.nav__links a {
-  font-size: 0.82rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--stone);
-  /* A nav item must never break across two lines: the Greek labels are long ("ΠΟΥ ΘΑ ΜΑΣ
-     ΒΡΕΙΣ") and wrapping one pushes the language switch off the right edge. */
+  line-height: var(--nav-h);
+  font-size: 0.78rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
   white-space: nowrap;
-  position: relative; padding-top: 5px; padding-bottom: 3px; transition: color 0.3s var(--ease);
 }
-.nav__links a::after {
-  content: ""; position: absolute; left: 0; bottom: 0; width: 0; height: 1px; background: var(--gold); transition: width 0.35s var(--ease);
-}
-.nav__links a:hover { color: var(--cream); }
-.nav__links a:hover::after { width: 100%; }
-.lang { display: flex; gap: 0.5rem; font-size: 0.78rem; letter-spacing: 0.06em; }
-.lang a { color: var(--stone-dim); padding: 0.35em 0.45em; }
-.lang a.active, .lang a:hover { color: var(--gold); }
-.nav__burger { display: none; }
+.nav__links { display: none; }
+.nav__right { display: flex; align-items: center; gap: 1.75rem; }
 
-/* ---------- hero ---------- */
-.hero { position: relative; min-height: 100svh; display: flex; align-items: flex-end; overflow: hidden; }
-.hero__media { position: absolute; inset: 0; z-index: 0; }
-.hero__media img { width: 100%; height: 115%; object-fit: cover; object-position: center; will-change: transform; }
-.hero__scrim {
-  position: absolute; inset: 0; z-index: 1;
+/* Real links, not a toggle: "/" is English, "/el/" is Greek. */
+.lang {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  font-size: 0.78rem;
+  letter-spacing: 0.14em;
+}
+.lang a, .lang span {
+  min-width: 48px;
+  line-height: var(--nav-h);
+  text-align: center;
+  color: var(--stone);
+  transition: color 0.3s, background 0.3s;
+}
+.lang a:hover { color: var(--cream); }
+.lang .active { color: var(--gold); }
+
+@media (min-width: 60em) {
+  :root { --nav-h: 70px; }
+  .nav {
+    background: rgba(16, 15, 13, 0.72);
+    border-bottom-color: rgba(201, 162, 75, 0.24);
+    -webkit-backdrop-filter: blur(6px);
+    backdrop-filter: blur(6px);
+  }
+  .nav__logo { font-size: 0.8125rem; letter-spacing: 0.22em; }
+  .nav__links {
+    display: flex;
+    gap: 1.75rem;
+    font-size: 0.8125rem;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+  }
+  .nav__links a { color: rgba(243, 237, 227, 0.72); transition: color 0.3s; }
+  .nav__links a:hover { color: var(--cream); }
+  /* Nav anchors fill the bar's height rather than sitting as 21px lines of text
+     in the middle of it — a 13px link is a 13px target otherwise. */
+  .nav__links a { display: inline-flex; align-items: center; justify-content: center; min-width: 48px; min-height: var(--nav-h); }
+  .lang {
+    gap: 0;
+    border: 1px solid var(--line);
+    border-radius: 99px;
+    overflow: hidden;
+    font-size: 0.8125rem;
+    letter-spacing: 0.16em;
+  }
+  .lang a, .lang span { min-width: 56px; line-height: 48px; }
+  .lang a:hover { background: rgba(243, 237, 227, 0.06); }
+  .lang .active { background: rgba(201, 162, 75, 0.18); }
+}
+
+/* Solid variant for pages with no hero behind the bar. */
+.nav--solid { background: rgba(16, 15, 13, 0.96); border-bottom-color: var(--line); }
+.nav__back { line-height: var(--nav-h); font-size: 0.78rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--stone); }
+.nav__back:hover { color: var(--gold); }
+
+/* =========================================================================
+   Hero — photography full-bleed, type sitting in the dark half, gold pooling
+   behind the light. The fold answers what / where / proof / price / action
+   before any scroll.
+   ========================================================================= */
+.hero { position: relative; isolation: isolate; min-height: 100svh; display: flex; flex-direction: column; overflow: clip; }
+.hero__media { position: absolute; inset: 0; z-index: -3; }
+.hero__media img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: 52% 38%;
+  /* Gold-graded duotone: mixed lighting between shoots stops mattering, and the
+     photograph joins the palette instead of sitting next to it. */
+  filter: grayscale(1) sepia(0.42) saturate(1.75) hue-rotate(-8deg) brightness(0.6);
+}
+/* Two layers, in this order: the light pool, then the legibility scrim. */
+.hero__pool { position: absolute; inset: 0; z-index: -2; background: radial-gradient(60% 40% at 70% 18%, rgba(201, 162, 75, 0.28), transparent 70%); }
+.hero__scrim { position: absolute; inset: 0; z-index: -1; background: linear-gradient(180deg, rgba(16, 15, 13, 0.72) 0%, rgba(16, 15, 13, 0.1) 34%, rgba(16, 15, 13, 0.96) 88%); }
+
+.hero__inner {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  margin-top: auto;
+  padding-top: 2.5rem;
+  padding-bottom: calc(var(--bar-h) + 1.75rem);
+}
+body.consent-on .hero__inner { padding-bottom: calc(var(--bar-h) + 12rem); }
+.hero__eyebrow { order: 1; display: flex; align-items: center; gap: 0.625rem; color: var(--gold-soft); }
+.hero__title {
+  order: 2;
+  margin-bottom: 0.875rem;
+  font-size: clamp(3.375rem, 13.8vw, 7.375rem);
+  line-height: 0.9;
+  letter-spacing: -0.045em;
+  text-wrap: initial;
+}
+.hero__title em { font-style: italic; }
+.hero__sub { order: 4; margin-top: 1.375rem; max-width: 44ch; color: var(--stone); font-size: 0.96875rem; }
+
+/* The rating as a designed object: it is the most persuasive asset the business
+   owns, so it gets the metal, the scale and the rule of its own. */
+.hero__proof {
+  order: 3;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 1rem;
+  padding-top: 0.875rem;
+  border-top: 1px solid rgba(201, 162, 75, 0.4);
+}
+.hero__score { font: 500 2.125rem/0.85 var(--display); letter-spacing: -0.04em; }
+.hero__rate { display: grid; }
+.hero__stars { color: var(--gold); font-size: 0.78rem; letter-spacing: 0.1em; }
+.hero__reviews { font-size: 0.78rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--stone); }
+.hero__pill { margin-left: auto; }
+.hero__pill--wide { display: none; }
+.hero__actions { order: 5; display: flex; gap: 0.5rem; margin-top: 1.125rem; }
+.hero__actions .btn { flex: 1; }
+.hero__actions .btn--ghost { flex: 0 0 auto; padding-inline: 1.25rem; }
+
+@media (min-width: 60em) {
+  .hero { min-height: min(820px, 100svh); }
+  .hero__media img { object-position: 58% 40%; }
+  .hero__pool { background: radial-gradient(46% 52% at 74% 26%, rgba(201, 162, 75, 0.3), transparent 68%); }
+  .hero__scrim { background: linear-gradient(100deg, rgba(16, 15, 13, 0.96) 0%, rgba(16, 15, 13, 0.78) 42%, rgba(16, 15, 13, 0.18) 78%); }
+  /* One grid row puts the proof block and the primary action on the same rule. */
+  .hero__inner {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: end;
+    padding-top: 4rem;
+    padding-bottom: clamp(3rem, 6vh, 5rem);
+  }
+  .hero__eyebrow, .hero__title, .hero__sub { grid-column: 1 / -1; }
+  .hero__eyebrow { order: 0; margin-bottom: 1.375rem; }
+  .hero__title { order: 0; max-width: 16ch; margin-bottom: 0; font-size: clamp(4.5rem, 8.2vw, 7.375rem); line-height: 0.86; letter-spacing: -0.05em; }
+  .hero__sub { order: 0; margin-top: 1.75rem; font-size: 1.1875rem; }
+  .hero__proof { order: 0; gap: 1.625rem; margin-top: 2.25rem; padding-top: 1.375rem; }
+  .hero__score { font-size: 4rem; line-height: 0.82; letter-spacing: -0.045em; }
+  .hero__stars { font-size: 0.9375rem; letter-spacing: 0.14em; }
+  .hero__reviews { font-size: 0.8125rem; letter-spacing: 0.1em; }
+  .hero__pill { display: none; }
+  .hero__pill--wide { display: inline-flex; margin-left: 0; }
+  .hero__actions {
+    order: 0;
+    margin-top: 2.25rem;
+    padding-top: 1.375rem;
+    border-top: 1px solid rgba(201, 162, 75, 0.4);
+    justify-content: flex-end;
+  }
+  .hero__actions .btn { flex: 0 0 auto; }
+  /* WhatsApp lives in the sticky bar and the Visit card on desktop; the fold
+     keeps one action, so the decision is unambiguous. */
+  .hero__actions .btn--ghost { display: none; }
+}
+
+/* =========================================================================
+   Fade — the section that matches the ad. Nothing here is asserted that the
+   Fresha menu does not confirm.
+   ========================================================================= */
+.fade {
+  position: relative;
+  padding-block: var(--sec);
   background:
-    linear-gradient(180deg, rgba(16,15,13,0.55) 0%, rgba(16,15,13,0.15) 32%, rgba(16,15,13,0.55) 70%, rgba(16,15,13,0.95) 100%),
-    radial-gradient(120% 90% at 20% 100%, rgba(16,15,13,0.85), transparent 60%);
+    radial-gradient(120% 70% at 82% 0%, rgba(201, 162, 75, 0.14), transparent 62%),
+    var(--ink-2);
 }
-.hero__inner { position: relative; z-index: 2; padding-bottom: clamp(4rem, 12vh, 8rem); padding-top: 8rem; }
-.hero .eyebrow { color: var(--gold-soft); }
-/* The 14ch cap belongs to the display lines, not to the h1: the eyebrow is inside the
-   heading now and a 14ch box would break "Ανδρικό Κουρείο · Κάτω Πάφος" across two lines. */
-.hero__title { font-size: clamp(2.9rem, 9vw, 6.6rem); font-weight: 500; max-width: none; }
-.hero__lines { display: block; max-width: 14ch; }
-.hero__eyebrow { display: block; font-family: var(--sans); letter-spacing: 0.22em; }
-.hero__title .line { display: block; overflow: hidden; }
-.hero__title .line span { display: block; }
-.hero__title .line:last-child span { color: var(--gold); font-style: italic; }
-.hero__sub { margin: 1.6rem 0 2.2rem; max-width: 46ch; color: var(--cream); font-size: clamp(1rem, 1.6vw, 1.18rem); opacity: 0.92; }
-.hero__actions { display: flex; flex-wrap: wrap; gap: 0.9rem; }
-.scroll-cue {
-  position: absolute; z-index: 2; bottom: 1.6rem; right: var(--pad);
-  display: flex; align-items: center; gap: 0.7rem; color: var(--stone);
-  font-size: 0.78rem; letter-spacing: 0.18em; text-transform: uppercase;
+.fade h2 { margin-top: 0.625rem; font-size: clamp(2.125rem, 8vw, 3.875rem); }
+.fade h2 em { font-style: italic; }
+.fade__body { margin: 0.875rem 0 1.125rem; color: var(--stone); font-size: 0.96875rem; max-width: 46ch; }
+.fade__svc { color: var(--gold-soft); }
+.fade__specs { display: none; }
+.fade__media { position: relative; border-radius: var(--r-card); overflow: hidden; aspect-ratio: 4 / 5; }
+.fade__media img { width: 100%; height: 100%; object-fit: cover; filter: grayscale(1) sepia(0.5) saturate(1.75) hue-rotate(-8deg) brightness(0.88); }
+.fade__media::after { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, transparent 55%, rgba(16, 15, 13, 0.9)); }
+.fade__cap {
+  position: absolute;
+  left: 0.75rem;
+  bottom: 0.75rem;
+  z-index: 1;
+  font-size: 0.78rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--gold-soft);
 }
-.scroll-cue .bar { width: 40px; height: 1px; background: var(--stone-dim); position: relative; overflow: hidden; }
-.scroll-cue .bar::after { content: ""; position: absolute; inset: 0; width: 40%; background: var(--gold); animation: cue 2.4s var(--ease) infinite; }
-@keyframes cue { 0% { transform: translateX(-100%); } 60%, 100% { transform: translateX(260%); } }
-
-/* ---------- proof strip ---------- */
-.proof { background: var(--ink-2); border-block: 1px solid var(--line); }
-.proof__grid {
-  display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: clamp(1.5rem, 4vw, 3.5rem);
-  padding-block: clamp(1.8rem, 4vw, 2.6rem);
+@media (min-width: 60em) {
+  .fade__grid { display: grid; grid-template-columns: 1fr 1.05fr; gap: 3.5rem; align-items: center; }
+  .fade__body { margin: 1.375rem 0 0; font-size: 1rem; }
+  .fade__media { aspect-ratio: 3 / 4; }
+  /* Time / price / how it is booked, set as figures. */
+  .fade__specs {
+    display: grid;
+    grid-template-columns: repeat(3, auto);
+    gap: 2.125rem;
+    justify-content: start;
+    margin-top: 2rem;
+    padding-block: 1.25rem;
+    border-block: 1px solid var(--line);
+  }
+  .fade__specs dt { font-size: 0.78rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--stone-dim); }
+  .fade__specs dd { margin-top: 0.3125rem; font: 500 1.875rem/1 var(--display); }
 }
-.proof__score { display: flex; flex-direction: column; gap: 0.2rem; }
-.proof__num { font-family: var(--serif); font-size: 2.6rem; line-height: 1.1; color: var(--cream); }
-.proof__stars { color: var(--gold); letter-spacing: 0.15em; font-size: 1rem; }
-.proof__meta { font-size: 0.78rem; letter-spacing: 0.08em; color: var(--stone); text-transform: uppercase; }
-.proof__quote { font-family: var(--serif); font-style: italic; font-size: clamp(1.1rem, 2.4vw, 1.6rem); color: var(--cream-2); }
-.proof__cta { display: inline-flex; align-items: center; min-height: 48px; font-size: 0.82rem; letter-spacing: 0.06em; color: var(--gold); white-space: nowrap; border-bottom: 1px solid transparent; transition: border-color 0.3s; }
-.proof__cta:hover { border-bottom-color: var(--gold); }
 
-/* ---------- marquee ---------- */
-.marquee { overflow: hidden; padding-block: 1.1rem; border-bottom: 1px solid var(--line); background: var(--ink); }
-.marquee__track { display: inline-flex; align-items: center; gap: 1.6rem; white-space: nowrap; will-change: transform; }
-.marquee__track span { font-family: var(--serif); font-size: 1.35rem; color: var(--stone); letter-spacing: 0.02em; }
-.marquee__track .dot { color: var(--gold); }
+/* =========================================================================
+   Services — a picker, not a table. Tapping a row selects it, the sticky bar
+   arms with it, and the hand-off carries it. With JavaScript off every row is a
+   plain link into the Fresha menu, which is where it always went.
+   ========================================================================= */
+.services { padding-block: var(--sec); }
+.svc-grid { display: grid; gap: 1.375rem; }
+.svc-group__title { margin-bottom: 0.625rem; font-size: 0.78rem; letter-spacing: 0.18em; text-transform: uppercase; color: var(--stone-dim); font-family: var(--sans); font-weight: 400; }
+.svc-list { list-style: none; display: grid; gap: 0.5rem; }
 
-/* ---------- services ---------- */
-.services { padding-block: clamp(4rem, 10vw, 7rem); }
-/* One column per service group. There are three groups (cuts / beard / treatments), so
-   three columns fill the row exactly and nothing is left hanging in a half-empty second
-   column. If a fourth group is ever restored (the combo packages), change this to 2 or 4
-   — an odd count in a 2-column grid leaves a visible void. */
-.svc-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: clamp(2rem, 5vw, 3.5rem) clamp(1.8rem, 4vw, 3.2rem); align-items: start; }
-.svc-group__title { color: var(--gold); font-size: 0.82rem; letter-spacing: 0.2em; text-transform: uppercase; font-family: var(--sans); margin-bottom: 1.1rem; padding-bottom: 0.7rem; border-bottom: 1px solid var(--line); }
-.svc-list { list-style: none; }
 .svc {
-  display: grid; grid-template-columns: 1fr auto auto; align-items: baseline; gap: 0.6rem 1.2rem;
-  padding: 0.85rem 0; border-bottom: 1px dashed rgba(185, 177, 166, 0.16);
-}
-.svc__name { font-size: 1.05rem; color: var(--cream); }
-.svc__tag { color: var(--gold); font-size: 0.8rem; }
-.svc__dur { font-size: 0.82rem; color: var(--stone-dim); letter-spacing: 0.04em; }
-.svc__price { font-family: var(--serif); font-size: 1.2rem; color: var(--gold); min-width: 3ch; text-align: right; }
-.svc--hero .svc__name { color: #fff; }
-.svc-note { margin-top: 2rem; font-size: 0.85rem; color: var(--stone-dim); }
-.svc-cta { margin-top: 2.4rem; }
-
-/* ---------- products (retail shelf) ---------- */
-/* Sits between Services and About on the same --ink background, so it reads as a
-   continuation of the price list rather than a separate storefront. The cut-outs are
-   transparent WebP on a common baseline: the light pool and the contact shadow are CSS,
-   not baked into the image, so one asset works on any card colour. */
-.products { padding-block: clamp(3.5rem, 9vw, 6.5rem); }
-.prod-intro { color: var(--stone); margin-top: 1.2rem; max-width: 50ch; }
-.prod-grid {
-  display: grid; grid-template-columns: repeat(3, 1fr);
-  gap: clamp(1rem, 2.2vw, 1.6rem);
-}
-.prod {
-  display: flex; flex-direction: column;
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: var(--r);
-  overflow: hidden;
-  transition: border-color 0.4s var(--ease), transform 0.4s var(--ease), background 0.4s var(--ease);
-}
-/* Only the <a> form is interactive; the <article> form (no shop URL yet) stays inert. */
-a.prod:hover { border-color: var(--gold); transform: translateY(-4px); }
-a.prod:focus-visible { outline: 2px solid var(--gold); outline-offset: 3px; }
-
-.prod__shot {
   position: relative;
-  aspect-ratio: 1 / 1;
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  width: 100%;
+  min-height: 60px;
+  padding: 0.75rem 0.875rem;
+  border: 1px solid rgba(201, 162, 75, 0.18);
+  border-radius: 10px;
   background: var(--ink-2);
-  border-bottom: 1px solid var(--line);
+  color: inherit;
+  font: 400 1rem var(--sans);
+  text-align: left;
+  cursor: pointer;
+  /* 180ms, functional feedback, no scale. This is a utility action. */
+  transition: border-color 0.18s var(--ease), background 0.18s var(--ease);
 }
-/* Warm pool of light behind the product — replaces the light-background composite the
-   packshots use, which would read as a white box on a dark page. */
-.prod__shot::before {
-  content: ""; position: absolute; inset: 0;
-  background: radial-gradient(58% 46% at 50% 42%, rgba(201, 162, 75, 0.16), transparent 72%);
+.svc:hover { border-color: rgba(201, 162, 75, 0.4); background: var(--panel); }
+.svc__mark {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border: 1px solid rgba(185, 177, 166, 0.35);
+  border-radius: 50%;
+  font-size: 0.6875rem;
+  color: transparent;
+  transition: border-color 0.18s var(--ease), color 0.18s var(--ease);
 }
-.prod__shot img {
+.svc__name { flex: 1; color: var(--stone); transition: color 0.18s var(--ease); }
+.svc:hover .svc__name { color: var(--cream); }
+.svc__dur { font-size: 0.78rem; letter-spacing: 0.06em; color: var(--stone-dim); }
+.svc__price { font: 500 1.375rem var(--display); color: var(--cream); transition: color 0.18s var(--ease); }
+
+/* Selected. Two channels, never colour alone: the ring fills AND the check
+   appears, so the state survives a greyscale screenshot. */
+.svc[aria-pressed="true"] {
+  border-color: var(--gold);
+  background: radial-gradient(120% 160% at 10% 0%, rgba(201, 162, 75, 0.2), rgba(27, 24, 19, 0.9) 62%);
+}
+.svc[aria-pressed="true"] .svc__mark { border-color: var(--gold); color: var(--gold); }
+.svc[aria-pressed="true"] .svc__name { color: var(--cream); }
+.svc[aria-pressed="true"] .svc__price { color: var(--gold); }
+
+/* No JS: the row is still a link, and it says so. main.js swaps the <a> for a
+   real <button> on init, which is what turns the mark on and the arrow off. */
+a.svc .svc__mark { display: none; }
+a.svc .svc__name { color: var(--gold); }
+a.svc .svc__ext { color: var(--gold); }
+button.svc .svc__ext { display: none; }
+
+.svc-total {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-top: 1.25rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--line);
+}
+.svc-total__k { font-size: 0.78rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--stone); }
+.svc-total__v { font: 500 2rem/1 var(--display); letter-spacing: -0.03em; }
+
+@media (min-width: 45em) { .svc-grid { grid-template-columns: repeat(2, 1fr); gap: 2rem; } }
+@media (min-width: 60em) {
+  .svc-grid { grid-template-columns: repeat(3, 1fr); gap: 2rem; align-items: start; }
+  .svc-group__title { margin-bottom: 0.75rem; letter-spacing: 0.2em; }
+  .svc-list { gap: 0.625rem; }
+  .svc-total { margin-top: 2.125rem; padding-top: 1rem; }
+  .svc-total__k { font-size: 0.8125rem; letter-spacing: 0.16em; }
+  .svc-total__v { font-size: 2.875rem; letter-spacing: -0.035em; }
+}
+
+/* =========================================================================
+   Work — a single-file strip on the phone, a mosaic on the desktop. One cell
+   per GALLERY entry: the grid is composed at whatever exists, and grows when
+   the shot list is actually shot.
+   ========================================================================= */
+.gallery { padding-block: var(--sec); background: var(--ink-2); }
+.gal__grid {
+  display: flex;
+  gap: 0.625rem;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  /* Bleed the strip to the screen edge so a card is visibly cut off — that is
+     the affordance, not a row of dots. */
+  margin-inline: calc(var(--pad) * -1);
+  padding: 0 var(--pad) 0.375rem;
+  scrollbar-width: thin;
+}
+.gal__cell {
   position: relative;
-  width: 100%; height: 100%;
-  object-fit: contain;
-  padding: 8% 10% 4%;
-  filter: drop-shadow(0 16px 22px rgba(0, 0, 0, 0.55));
-  transition: transform 0.7s var(--ease);
+  flex: 0 0 232px;
+  aspect-ratio: 9 / 16;
+  border-radius: var(--r-card);
+  overflow: hidden;
+  scroll-snap-align: start;
 }
-a.prod:hover .prod__shot img { transform: translateY(-6px) scale(1.03); }
-
-.prod__body { display: flex; flex-direction: column; gap: 0.4rem; padding: 1.2rem 1.25rem 1.35rem; flex: 1; }
-.prod__brand { font-size: 0.78rem; letter-spacing: 0.18em; text-transform: uppercase; color: var(--gold); }
-.prod__name { font-family: var(--serif); font-size: 1.35rem; color: var(--cream); line-height: 1.15; }
-.prod__meta { font-size: 0.78rem; letter-spacing: 0.06em; color: var(--stone-dim); }
-.prod__desc { font-size: 0.9rem; line-height: 1.55; color: var(--stone); margin-top: 0.35rem; }
-.prod__price {
-  margin-top: auto; padding-top: 1rem;
-  font-family: var(--serif); font-size: 1.3rem; color: var(--gold);
-  display: flex; align-items: baseline; gap: 0.45em;
+.gal__cell img, .gal__cell video { width: 100%; height: 100%; object-fit: cover; filter: grayscale(1) sepia(0.5) saturate(1.75) hue-rotate(-8deg) brightness(0.86); }
+/* The captions sit over photographs of lit ceiling lamps — the brightest thing on
+   the site. A text-shadow is not enough there, so the cell earns a foot. */
+.gal__cell::after {
+  content: "";
+  position: absolute;
+  inset: auto 0 0 0;
+  height: 45%;
+  background: linear-gradient(180deg, transparent, rgba(16, 15, 13, 0.88));
+  pointer-events: none;
 }
-.prod__from { font-family: var(--sans); font-size: 0.78rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--stone-dim); }
-
-.prod-note { margin-top: 2rem; font-size: 0.85rem; color: var(--stone-dim); max-width: 62ch; }
-.prod-cta { margin-top: 2rem; }
-/* Shown while there is no Fresha product link: states plainly that the shelf is physical. */
-.prod-shopline {
-  margin-top: 1.1rem; display: inline-flex; align-items: center; gap: 0.6rem;
-  font-size: 0.78rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--stone);
+.gal__cap {
+  z-index: 1;
+  position: absolute;
+  left: 0.75rem;
+  right: 0.75rem;
+  bottom: 0.75rem;
+  font-size: 0.78rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--gold-soft);
+  text-shadow: 0 1px 8px rgba(16, 15, 13, 0.9);
 }
-.prod-shopline__dot { width: 6px; height: 6px; border-radius: 50%; background: var(--gold); flex: none; }
+@media (min-width: 60em) {
+  .gal__grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 0.625rem;
+    overflow: visible;
+    margin-inline: 0;
+    padding: 0;
+  }
+  .gal__cell { flex: none; }
+  .gal__cell--2 { grid-column: span 2; }
+  /* One rule per value GALLERY's `ratio` field is allowed to take. Adding a
+     ratio there means adding its rule here — the class name is derived from the
+     value, so a typo shows up as a cell with no aspect-ratio at all. */
+  .gal__cell--r-16-11 { aspect-ratio: 16 / 11; }
+  .gal__cell--r-3-4 { aspect-ratio: 3 / 4; }
+  .gal__cap { left: 0.875rem; right: 0.875rem; bottom: 0.75rem; font-size: 0.78rem; }
+}
 
-/* ---------- about ---------- */
-.about { padding-block: clamp(3rem, 8vw, 6rem); background: var(--ink-2); border-block: 1px solid var(--line); }
-.about__grid { display: grid; grid-template-columns: 0.85fr 1fr; gap: clamp(2rem, 6vw, 5rem); align-items: center; }
-.about__media { border-radius: var(--r); overflow: hidden; }
-.about__media img { width: 100%; height: 100%; object-fit: cover; aspect-ratio: 3/4; }
-.about__text p { color: var(--stone); margin-top: 1.1rem; max-width: 52ch; }
-.about__text h2 { color: var(--cream); }
+/* =========================================================================
+   The shop — the most finished block on the old site, kept: 3:4 portrait split
+   and the gold-ruled pull-quote.
+   ========================================================================= */
+.about {
+  padding-block: var(--sec);
+  background: radial-gradient(110% 60% at 15% 0%, rgba(201, 162, 75, 0.12), transparent 60%);
+}
+.about h2 { margin: 0.625rem 0 1rem; font-size: clamp(1.875rem, 7.7vw, 3.5rem); line-height: 1.04; }
+.about__media { border-radius: var(--r-card); overflow: hidden; margin-bottom: 1.125rem; }
+.about__media img { width: 100%; height: 100%; object-fit: cover; aspect-ratio: 3 / 4; filter: grayscale(1) sepia(0.42) saturate(1.6) hue-rotate(-8deg) brightness(0.9); }
+.about__text p { color: var(--stone); font-size: 0.96875rem; }
+.about__text p + p { margin-top: 0.75rem; }
 .about__quote {
-  margin-top: 2rem; padding-left: 1.4rem; border-left: 2px solid var(--gold);
-  font-family: var(--serif); font-style: italic; font-size: 1.35rem; color: var(--cream-2);
-  display: flex; flex-direction: column; gap: 0.6rem;
+  margin-top: 1.25rem;
+  padding: 1.125rem;
+  border: 1px solid var(--line);
+  border-radius: var(--r-card);
+  background: rgba(27, 24, 19, 0.6);
+  font: 500 1.3125rem/1.32 var(--display);
+  color: var(--cream-2);
 }
-.about__quote cite { font-size: 0.82rem; font-style: normal; letter-spacing: 0.06em; color: var(--stone-dim); }
-
-/* ---------- gallery ---------- */
-.gallery { padding-block: clamp(4rem, 10vw, 7rem); }
-.gal__grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: clamp(0.8rem, 2vw, 1.4rem); }
-.gal__cell { overflow: hidden; border-radius: var(--r); }
-.gal__cell img { width: 100%; height: 100%; object-fit: cover; aspect-ratio: 4/3; transition: transform 0.9s var(--ease); }
-.gal__cell:hover img { transform: scale(1.05); }
-.gal__cell--wide { grid-column: 1 / -1; }
-.gal__cell--wide img { aspect-ratio: 16/7; }
-
-/* ---------- visit ---------- */
-.visit { padding-block: clamp(4rem, 10vw, 7rem); background: var(--ink-2); border-top: 1px solid var(--line); }
-.visit__grid { display: grid; grid-template-columns: 1fr 1fr; gap: clamp(2rem, 5vw, 4rem); align-items: start; }
-.visit__info { display: grid; grid-template-columns: 1fr 1fr; gap: 1.8rem 2rem; margin-top: 2rem; }
-.visit__block h3 { font-family: var(--sans); font-size: 0.75rem; letter-spacing: 0.2em; text-transform: uppercase; color: var(--gold); margin-bottom: 0.7rem; }
-.visit__block p { color: var(--stone); }
-/* flex, not inline-flex: these stack one per line and must stay that way. */
-.visit__block a { display: flex; align-items: center; min-height: 48px; color: var(--cream); transition: color 0.3s; }
-.visit__block a:hover { color: var(--gold); }
-.visit__block--wide { grid-column: 1 / -1; }
-.hours-table { width: 100%; max-width: 340px; border-collapse: collapse; }
-.hours-table td { padding: 0.55rem 0; border-bottom: 1px dashed rgba(185, 177, 166, 0.16); color: var(--cream); }
-.hours-table td:last-child { text-align: right; color: var(--gold); }
-.visit__cta { margin-top: 2.4rem; }
-.map { border-radius: var(--r); overflow: hidden; border: 1px solid var(--line); min-height: 380px; }
-.map iframe { width: 100%; height: 100%; min-height: 380px; border: 0; filter: grayscale(0.35) contrast(1.05); }
-
-/* ---------- footer ---------- */
-.footer { padding-block: clamp(2.5rem, 6vw, 4rem); background: var(--ink); border-top: 1px solid var(--line); }
-.footer__top { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 2rem; align-items: flex-start; }
-.footer__brand { font-family: var(--serif); font-size: 1.5rem; letter-spacing: 0.14em; color: var(--cream); display: flex; flex-direction: column; gap: 0.4rem; }
-.footer__brand span { font-family: var(--sans); font-size: 0.78rem; letter-spacing: 0.08em; color: var(--stone-dim); text-transform: none; }
-.footer__links { display: flex; flex-wrap: wrap; gap: 1.4rem; }
-.footer__links a { display: inline-flex; align-items: center; min-height: 48px; font-size: 0.85rem; letter-spacing: 0.04em; color: var(--stone); transition: color 0.3s; }
-.footer__links a:hover { color: var(--gold); }
-.footer__reset {
-  display: inline-flex; align-items: center; min-height: 48px;
-  background: none; border: 0; padding: 0; cursor: pointer;
-  font-family: var(--sans); font-size: 0.85rem; letter-spacing: 0.04em;
-  color: var(--stone); transition: color 0.3s;
+.about__quote cite {
+  display: block;
+  margin-top: 0.625rem;
+  font: 400 0.78rem var(--sans);
+  font-style: normal;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--stone-dim);
 }
-.footer__reset:hover { color: var(--gold); }
-.footer__bottom { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 0.8rem; margin-top: 2.5rem; padding-top: 1.5rem; border-top: 1px solid var(--line); font-size: 0.78rem; color: var(--stone-dim); }
-
-/* ---------- Floating booking icon + slide-in panel ---------- */
-.book-fab {
-  position: fixed; z-index: 56; right: clamp(1rem, 3vw, 1.8rem); bottom: clamp(1rem, 3vw, 1.8rem);
-  width: 58px; height: 58px; border-radius: 50%;
-  display: grid; place-items: center;
-  background: var(--gold); color: var(--ink);
-  border: 0; cursor: pointer;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
-  transition: transform 0.35s var(--ease), background 0.3s var(--ease), box-shadow 0.3s var(--ease);
-  will-change: transform;
-}
-.book-fab::before {
-  content: ""; position: absolute; inset: 0; border-radius: 50%;
-  border: 1px solid var(--gold); animation: fabPulse 2.8s var(--ease) infinite;
-}
-@keyframes fabPulse { 0% { transform: scale(1); opacity: 0.7; } 70%, 100% { transform: scale(1.6); opacity: 0; } }
-.book-fab:hover { background: var(--gold-soft); transform: translateY(-2px) scale(1.05); }
-body.bk-on .book-fab { transform: scale(0); pointer-events: none; }
-@media (prefers-reduced-motion: reduce) { .book-fab::before { display: none; } }
-
-.bk-backdrop {
-  position: fixed; inset: 0; z-index: 90;
-  background: rgba(8, 7, 6, 0.62); backdrop-filter: blur(4px);
-  opacity: 0; visibility: hidden; transition: opacity 0.4s var(--ease), visibility 0.4s;
-}
-body.bk-on .bk-backdrop { opacity: 1; visibility: visible; }
-
-.bk-panel {
-  position: fixed; z-index: 95; top: 0; right: 0; bottom: 0;
-  width: min(430px, 100%);
-  background: var(--ink-2); border-left: 1px solid var(--line);
-  box-shadow: -20px 0 60px rgba(0, 0, 0, 0.5);
-  display: flex; flex-direction: column; gap: 1.2rem;
-  padding: clamp(1.4rem, 4vw, 2.2rem);
-  transform: translateX(100%); transition: transform 0.5s var(--ease);
-  overflow-y: auto; overscroll-behavior: contain;
-}
-body.bk-on .bk-panel { transform: none; }
-.bk-panel__head { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; }
-.bk-title { color: var(--cream); font-size: clamp(1.8rem, 5vw, 2.4rem); }
-.bk-close {
-  flex: none; width: 48px; height: 48px; border-radius: 50%;
-  background: transparent; color: var(--stone); border: 1px solid var(--line);
-  font-size: 1.1rem; cursor: pointer; transition: color 0.3s, border-color 0.3s, transform 0.3s var(--ease);
-}
-.bk-close:hover { color: var(--gold); border-color: var(--gold); transform: rotate(90deg); }
-.bk-intro { color: var(--stone); font-size: 0.95rem; margin-top: -0.4rem; }
-.bk-rating { display: flex; align-items: center; gap: 0.6rem; font-size: 0.82rem; color: var(--cream); letter-spacing: 0.04em; }
-.bk-rating__stars { color: var(--gold); letter-spacing: 0.12em; }
-.bk-list { list-style: none; border-top: 1px solid var(--line); }
-.bk-svc { display: flex; justify-content: space-between; gap: 1rem; padding: 0.7rem 0; border-bottom: 1px solid rgba(185, 177, 166, 0.12); font-size: 0.95rem; color: var(--cream); }
-.bk-svc__price { color: var(--gold); font-family: var(--serif); }
-.bk-foot { margin-top: auto; display: flex; flex-direction: column; gap: 0.7rem; align-items: flex-start; position: sticky; bottom: 0; padding-top: 1rem; background: linear-gradient(to top, var(--ink-2) 70%, transparent); }
-.bk-go { width: 100%; justify-content: center; }
-.bk-via { font-size: 0.78rem; letter-spacing: 0.06em; color: var(--stone-dim); text-transform: uppercase; align-self: center; }
-
-/* ---------- custom cursor (desktop) ---------- */
-.cursor, .cursor-dot { position: fixed; top: 0; left: 0; z-index: 100; pointer-events: none; border-radius: 50%; mix-blend-mode: difference; }
-.cursor { width: 34px; height: 34px; border: 1px solid var(--cream); transition: width 0.3s var(--ease), height 0.3s var(--ease), background 0.3s; }
-.cursor-dot { width: 5px; height: 5px; background: var(--cream); }
-body.cursor-active .cursor { width: 54px; height: 54px; background: rgba(243, 237, 227, 0.12); }
-@media (hover: none), (pointer: coarse) { .cursor, .cursor-dot { display: none; } }
-
-/* ---------- reveal animations (only when JS is on → no-JS stays fully visible) ---------- */
-.img-reveal { overflow: hidden; }
-html.js .reveal, html.js .img-reveal img { opacity: 0; }
-html.js .reveal { transform: translateY(28px); transition: opacity 0.9s var(--ease), transform 0.9s var(--ease); }
-html.js .reveal.in { opacity: 1; transform: none; }
-html.js [data-stagger] > * { opacity: 0; transform: translateY(24px); transition: opacity 0.7s var(--ease), transform 0.7s var(--ease); }
-html.js [data-stagger].in > * { opacity: 1; transform: none; }
-html.js .img-reveal img { transform: scale(1.12); transition: opacity 1s var(--ease), transform 1.3s var(--ease); }
-html.js .img-reveal.in img { opacity: 1; transform: scale(1); }
-@media (prefers-reduced-motion: reduce) {
-  html.js .reveal, html.js .img-reveal img, html.js [data-stagger] > * { opacity: 1 !important; transform: none !important; }
+@media (min-width: 60em) {
+  .about__grid { display: grid; grid-template-columns: 0.8fr 1.2fr; gap: 3.5rem; align-items: center; }
+  .about__media { margin-bottom: 0; }
+  .about h2 { margin: 0.75rem 0 1.375rem; max-width: 22ch; letter-spacing: -0.04em; }
+  .about__text p { max-width: 56ch; font-size: 1rem; }
+  .about__text p + p { margin-top: 0.875rem; }
+  .about__quote { margin-top: 1.625rem; padding: 1.375rem 1.5rem; border-radius: 16px; font-size: 1.625rem; max-width: 48ch; }
+  .about__quote cite { margin-top: 0.75rem; }
 }
 
-/* ---------- FAQ ---------- */
-.faq { padding-block: clamp(4rem, 10vw, 7rem); border-top: 1px solid var(--line); }
-.faq__list { max-width: 72ch; }
-.faq__item { border-bottom: 1px solid var(--line); }
+/* =========================================================================
+   Products — the retail shelf. Cut-outs on pooled gold light, no basket: the
+   price is a floor and the sale happens at the chair.
+   ========================================================================= */
+.products { padding-block: var(--sec); }
+.prod-intro__shop { display: none; }
+.prod-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.625rem; }
+.prod {
+  display: flex;
+  flex-direction: column;
+  padding: 0.875rem 0.875rem 1rem;
+  border: 1px solid rgba(201, 162, 75, 0.18);
+  border-radius: var(--r-card);
+  background: var(--ink-2);
+  transition: border-color 0.35s var(--ease);
+}
+.prod:hover { border-color: rgba(201, 162, 75, 0.45); }
+.prod__shot { position: relative; aspect-ratio: 1; display: grid; place-items: center; padding: 8%; margin-bottom: 0.75rem; }
+/* The pool of light behind the object, not a fill under it. */
+.prod__shot::before {
+  content: "";
+  position: absolute;
+  width: 78%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(201, 162, 75, 0.26), transparent 68%);
+}
+.prod__shot img { position: relative; width: 100%; height: 100%; object-fit: contain; }
+.prod__body { display: flex; flex-direction: column; flex: 1; }
+.prod__brand { font-size: 0.78rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--gold); margin-bottom: 0.25rem; }
+.prod__name { font: 500 1.25rem/1.1 var(--display); letter-spacing: -0.02em; color: var(--cream); }
+.prod__meta { margin-top: 0.3125rem; font-size: 0.78rem; letter-spacing: 0.04em; color: var(--stone-dim); }
+.prod__desc { display: none; }
+.prod__price { margin: auto 0 0; padding-top: 0.75rem; font: 500 1.25rem var(--display); color: var(--cream); }
+.prod__from { font: 400 0.78rem var(--sans); letter-spacing: 0.12em; text-transform: uppercase; color: var(--stone-dim); margin-right: 0.375rem; }
+.prod-shopline { display: flex; align-items: center; gap: 0.5rem; margin-top: 1rem; font-size: 0.78rem; color: var(--stone-dim); }
+.prod-shopline__dot { width: 6px; height: 6px; border-radius: 50%; background: var(--gold); flex: none; }
+.prod-cta { margin-top: 1.25rem; }
+
+@media (min-width: 60em) {
+  .prod-intro__shop { display: inline; }
+  .prod-grid { grid-template-columns: repeat(3, 1fr); gap: 1rem; }
+  /* Horizontal card: the cut-out sits beside the copy, so the description has
+     somewhere to live. */
+  .prod { flex-direction: row; gap: 1.25rem; align-items: center; padding: 1.125rem; border-radius: 16px; }
+  .prod__shot { flex: 0 0 116px; height: 116px; aspect-ratio: auto; padding: 0; margin-bottom: 0; }
+  .prod__shot::before { width: 100%; }
+  .prod__body { display: block; flex: 1; min-width: 0; }
+  .prod__brand { letter-spacing: 0.12em; }
+  .prod__name { font-size: 1.625rem; line-height: 1.05; }
+  .prod__meta { margin-top: 0.375rem; }
+  .prod__desc { display: block; margin-top: 0.625rem; font-size: 0.875rem; line-height: 1.6; color: var(--stone); }
+  .prod__price { margin: 0.75rem 0 0; padding-top: 0; font-size: 1.5rem; }
+  .prod__from { margin-right: 0.5rem; }
+}
+
+/* =========================================================================
+   Visit — for a tourist this section is the whole product: where, when, how far.
+   ========================================================================= */
+.visit { padding-block: var(--sec); background: var(--ink-2); }
+.visit__grid { display: grid; gap: 1rem; }
+.visit__card { padding: 1rem; border: 1px solid var(--line); border-radius: var(--r-card); background: rgba(27, 24, 19, 0.6); }
+.visit__card h3 { margin-bottom: 0.25rem; font: 400 0.78rem var(--sans); letter-spacing: 0.18em; text-transform: uppercase; color: var(--stone-dim); }
+.visit__card + .visit__card { margin-top: 0; }
+.visit address { font-style: normal; color: var(--stone); line-height: 1.7; font-size: 0.9375rem; }
+.visit address b { display: block; color: var(--cream); font-weight: 400; font-size: 1rem; }
+.visit__actions { display: flex; gap: 0.5rem; margin-top: 1rem; }
+.visit__actions .btn--ghost { flex: 1; min-height: 48px; font-size: 0.875rem; }
+.hours-table td { padding: 0.5rem 0; border-bottom: 1px dotted rgba(185, 177, 166, 0.25); font-size: 0.84375rem; color: var(--stone); }
+.hours-table td:last-child { text-align: right; color: var(--cream); }
+.map { position: relative; border-radius: var(--r-card); overflow: hidden; border: 1px solid var(--line); aspect-ratio: 16 / 10; }
+.map iframe {
+  width: 100%;
+  height: 100%;
+  border: 0;
+  filter: invert(1) grayscale(1) brightness(0.86) contrast(1.1) sepia(0.35) saturate(1.5) hue-rotate(-8deg);
+}
+@media (min-width: 60em) {
+  .visit__grid { grid-template-columns: 1fr 1fr 1.2fr; gap: 2rem; align-items: start; }
+  .visit__card { padding: 1.5rem; border-radius: 16px; }
+  .visit__card h3 { margin-bottom: 0.625rem; }
+  .visit address { line-height: 1.75; }
+  .visit address b { font-family: var(--display); font-size: 1.375rem; }
+  .visit__actions { margin-top: 1rem; }
+  .visit__actions .btn--ghost { flex: 0 0 auto; padding-inline: 1.125rem; }
+  .hours-table td { padding: 0.625rem 0; font-size: 0.9375rem; }
+  .map { aspect-ratio: 16 / 10; border-radius: 16px; }
+}
+
+/* =========================================================================
+   FAQ — stays <details>. Native semantics, keyboard and search-engine legible.
+   ========================================================================= */
+.faq { padding-block: var(--sec); }
+.faq__item { border: 1px solid var(--line); border-radius: 12px; background: var(--ink-2); margin-bottom: 0.5rem; }
 .faq__item summary {
-  display: flex; align-items: center; justify-content: space-between; gap: 1rem;
-  min-height: 48px; padding-block: 1.1rem; cursor: pointer;
-  font-family: var(--serif); font-size: 1.15rem; color: var(--cream);
-  list-style: none; transition: color 0.3s;
+  list-style: none;
+  cursor: pointer;
+  min-height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.875rem;
+  padding: 0.75rem 0.875rem;
+  font: 500 1.0625rem/1.3 var(--display);
+  color: var(--cream);
 }
 .faq__item summary::-webkit-details-marker { display: none; }
-/* The marker is drawn in CSS so it can rotate: a plain "+" that becomes a "×" reads as
-   open/closed without depending on the browser's own triangle. */
-.faq__item summary::after {
-  content: "+"; flex: none; font-family: var(--sans); font-size: 1.4rem; line-height: 1;
-  color: var(--gold); transition: transform 0.35s var(--ease);
-}
+.faq__item summary::after { content: "+"; color: var(--gold); transition: transform 0.3s var(--ease); }
 .faq__item[open] summary::after { transform: rotate(45deg); }
-.faq__item summary:hover { color: var(--gold); }
-.faq__item p { padding-bottom: 1.3rem; color: var(--stone); max-width: 62ch; }
+.faq__item summary:hover { color: var(--gold-soft); }
+.faq__item p { margin: 0; padding: 0 0.875rem 0.875rem; color: var(--stone); font-size: 0.9375rem; }
+@media (min-width: 60em) {
+  .faq__grid { display: grid; grid-template-columns: 0.9fr 1.1fr; gap: 3rem; align-items: start; }
+  .faq__head h2 { margin-top: 0.75rem; max-width: 18ch; font-size: clamp(2.5rem, 3.8vw, 3.375rem); line-height: 1; letter-spacing: -0.04em; }
+  .faq__item { border-radius: var(--r-card); margin-bottom: 0.625rem; }
+  .faq__item summary { min-height: 60px; padding: 0.875rem 1.125rem; font-size: 1.3125rem; }
+  .faq__item p { padding: 0 1.125rem 1rem; font-size: 1rem; line-height: 1.65; }
+}
 
-/* ---------- breadcrumbs (secondary pages only) ---------- */
+/* =========================================================================
+   Footer
+   ========================================================================= */
+.footer { padding-block: 1.625rem calc(var(--bar-h) + 2.5rem); background: var(--ink-2); text-align: center; }
+.footer__brand { display: inline-grid; justify-items: center; }
+.footer__brand .hex { margin-bottom: 0.625rem; }
+.footer__name { display: block; font: 500 1.5rem/1 var(--display); }
+.footer__name i { font-style: italic; }
+.footer__tag { display: block; margin-top: 0.375rem; font-size: 0.78rem; letter-spacing: 0.1em; color: var(--stone-dim); }
+.footer__links { display: flex; flex-wrap: wrap; justify-content: center; gap: 0 1.125rem; margin-top: 0.125rem; }
+.footer__links a, .footer__reset {
+  display: inline-flex;
+  align-items: center;
+  min-height: 48px;
+  font: 400 0.78rem var(--sans);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--stone);
+  background: none;
+  border: 0;
+  cursor: pointer;
+  transition: color 0.3s;
+}
+.footer__links a:hover, .footer__reset:hover { color: var(--gold); }
+.footer__legal { margin-top: 0.25rem; font-size: 0.78rem; letter-spacing: 0.08em; color: var(--stone-dim); }
+.footer__legal > span { display: block; }
+@media (min-width: 60em) {
+  .footer { display: flex; align-items: center; justify-content: space-between; gap: 2rem; flex-wrap: wrap; text-align: left; padding-block: 2.75rem calc(var(--bar-h) + 3.5rem); }
+  .footer__brand { display: flex; align-items: center; gap: 0.875rem; }
+  .footer__brand .hex { margin-bottom: 0; }
+  .footer__name { font-size: 1.625rem; }
+  .footer__tag { margin-top: 0.3125rem; }
+  .footer__links { margin-top: 0; gap: 0 1.625rem; }
+  .footer__legal { flex: 1 0 100%; margin-top: 0; }
+    .footer__legal > span { display: inline; }
+  .footer__legal > span + span::before { content: " · "; color: var(--line); }
+}
+
+/* =========================================================================
+   Sticky booking bar — replaces the pulsing round fab. Enters once when the
+   hero leaves the screen, sits in the thumb zone, holds the picked service.
+   Never pulses. Never re-animates.
+   ========================================================================= */
+.bar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 25;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem 0.875rem;
+  opacity: 0;
+  transform: translateY(8px);
+  pointer-events: none;
+  visibility: hidden;
+  transition: opacity 0.2s var(--ease), transform 0.2s var(--ease), visibility 0.2s;
+}
+body.bar-on .bar { opacity: 1; transform: none; pointer-events: auto; visibility: visible; }
+.bar__book {
+  flex: 1;
+  min-width: 0;
+  min-height: 58px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.375rem 0.75rem 0.375rem 1.25rem;
+  background: var(--gold);
+  border: 1px solid var(--gold);
+  border-radius: 99px;
+  color: var(--ink);
+  font: 600 0.9375rem var(--sans);
+  text-align: left;
+  cursor: pointer;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+  transition: background 0.35s var(--ease);
+}
+.bar__book:hover { background: var(--gold-soft); }
+.bar__book > span { min-width: 0; }
+.bar__title, .bar__sub { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bar__title { display: block; line-height: 1.2; }
+.bar__sub { display: block; margin-top: 2px; font: 400 0.78rem var(--sans); letter-spacing: 0.08em; text-transform: uppercase; opacity: 0.72; }
+.bar__wa {
+  flex: 0 0 58px;
+  width: 58px;
+  height: 58px;
+  display: grid;
+  place-items: center;
+  border-radius: 99px;
+  background: rgba(27, 24, 19, 0.92);
+  border: 1px solid rgba(243, 237, 227, 0.28);
+  color: var(--cream);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+  transition: background 0.3s, border-color 0.3s;
+}
+.bar__wa:hover { background: rgba(43, 38, 29, 0.95); border-color: rgba(243, 237, 227, 0.5); color: var(--cream); }
+@media (min-width: 60em) {
+  .bar { justify-content: flex-end; gap: 0.625rem; padding: 0.875rem var(--pad) 1rem; background: linear-gradient(180deg, transparent, rgba(16, 15, 13, 0.92) 42%); }
+  .bar__book { flex: 0 0 auto; min-width: 400px; padding-left: 1.375rem; font-size: 1rem; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .bar { transition: none; transform: none; }
+}
+
+/* Pages with nothing to book carry no bar, so nothing has to be cleared for it. */
+body.no-bar .footer { padding-bottom: var(--sec); }
+body.no-bar .consent { bottom: 0.875rem; }
+
+/* =========================================================================
+   Booking sheet — a bottom sheet on the phone, a centred panel on the desktop.
+   Same markup, no bounce: bookings are a utility action.
+   ========================================================================= */
+.sheet {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: grid;
+  align-items: end;
+  opacity: 0;
+  pointer-events: none;
+  visibility: hidden;
+  transition: opacity 0.4s var(--ease), visibility 0.4s;
+}
+body.sheet-on .sheet { opacity: 1; pointer-events: auto; visibility: visible; }
+.sheet__scrim { position: absolute; inset: 0; background: rgba(8, 8, 7, 0.72); border: 0; cursor: pointer; }
+.sheet__panel {
+  position: relative;
+  background: var(--ink-2);
+  border-top: 1px dashed rgba(201, 162, 75, 0.5);
+  border-radius: 16px 16px 0 0;
+  padding: 1.375rem 1rem 1.625rem;
+  transform: translateY(101%);
+  transition: transform 0.5s var(--ease);
+  max-height: 100svh;
+  overflow-y: auto;
+}
+body.sheet-on .sheet__panel { transform: none; }
+.sheet__close {
+  position: absolute;
+  top: 0.375rem;
+  right: 0.375rem;
+  width: 48px;
+  height: 48px;
+  display: grid;
+  place-items: center;
+  background: none;
+  border: 0;
+  color: var(--stone);
+  cursor: pointer;
+  font-size: 0.9375rem;
+}
+.sheet__close:hover { color: var(--gold); }
+.sheet__grip { display: block; width: 44px; height: 4px; border-radius: 99px; background: rgba(243, 237, 227, 0.25); margin: 0 auto 0.875rem; }
+.sheet h2 { font: 500 1.75rem/1 var(--display); color: var(--cream); }
+.sheet__intro { margin: 0.25rem 0 0.875rem; font-size: 0.875rem; color: var(--stone); }
+.sheet__card {
+  display: grid;
+  gap: 0.5rem;
+  padding: 0.875rem;
+  border: 1px solid var(--line);
+  border-radius: var(--r-card);
+  background: rgba(27, 24, 19, 0.7);
+  transition: background 0.18s var(--ease);
+}
+/* Armed: the card lights up when a service is actually held. */
+body.sheet-armed .sheet__card { background: radial-gradient(120% 140% at 10% 0%, rgba(201, 162, 75, 0.16), rgba(27, 24, 19, 0.9) 60%); }
+.sheet__row { display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; }
+.sheet__row--total { padding-top: 0.5rem; border-top: 1px solid var(--line); }
+.sheet__k { font-size: 0.78rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--stone-dim); }
+.sheet__v { font: 500 1.25rem var(--display); color: var(--stone); text-align: right; }
+body.sheet-armed .sheet__v { color: var(--cream); }
+.sheet__total { font: 500 1.875rem var(--display); color: var(--cream); text-align: right; }
+body.sheet-armed .sheet__total { background: var(--gold-soft); }
+@supports (background-clip: text) or (-webkit-background-clip: text) {
+  body.sheet-armed .sheet__total {
+    background: var(--metal);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+}
+.sheet__actions { display: grid; gap: 0.5rem; margin-top: 0.875rem; }
+.sheet__via { margin-top: 0.75rem; text-align: center; font-size: 0.78rem; letter-spacing: 0.06em; color: var(--stone-dim); }
+
+@media (min-width: 60em) {
+  .sheet { place-items: center; align-items: center; transition-duration: 0.3s; }
+  .sheet__panel {
+    width: min(540px, calc(100vw - 2rem));
+    border: 1px solid var(--line);
+    border-radius: 18px;
+    padding: 1.875rem 1.875rem 2rem;
+    transform: translateY(12px);
+    transition-duration: 0.4s;
+  }
+  .sheet__close { top: 0.625rem; right: 0.625rem; font-size: 1rem; }
+  .sheet__grip { display: none; }
+  .sheet h2 { font-size: 2.125rem; }
+  .sheet__intro { margin: 0.375rem 0 1.125rem; font-size: 0.9375rem; }
+  .sheet__card { gap: 0.625rem; padding: 1.125rem; border-radius: 16px; }
+  .sheet__row--total { padding-top: 0.625rem; }
+  .sheet__v { font-size: 1.375rem; }
+  .sheet__total { font-size: 2.125rem; }
+  .sheet__actions { gap: 0.625rem; margin-top: 1.125rem; }
+  .sheet__via { margin-top: 0.875rem; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sheet, .sheet__panel { transition: none; }
+  .sheet__panel { transform: none; }
+}
+
+/* =========================================================================
+   Cookie consent — lifts by the bar height instead of the old hard-coded 4.4rem.
+   ========================================================================= */
+.consent {
+  position: fixed;
+  left: 0.75rem;
+  right: 0.75rem;
+  bottom: 0.875rem;
+  z-index: 26;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 0.875rem;
+  background: rgba(27, 24, 19, 0.97);
+  border: 1px solid var(--line);
+  border-radius: var(--r-card);
+  box-shadow: 0 12px 34px rgba(0, 0, 0, 0.5);
+  font-size: 0.84375rem;
+  color: var(--stone);
+}
+.consent[hidden] { display: none; }
+.consent__text { flex: 1 1 180px; line-height: 1.55; }
+.consent__btn { min-height: 48px; padding: 0 1rem; font-size: 0.8125rem; }
+/* No entrance animation: it is a legal notice, not a moment. */
+body.bar-on .consent { bottom: calc(var(--bar-h) + 1.375rem); }
+/* While the booking sheet is open the banner steps aside. It would otherwise sit
+   underneath a modal — drawn behind the panel but still in the tab order, and
+   visible through the scrim while the panel slides. It comes straight back on
+   close, because the choice is still pending. */
+body.sheet-on .consent { visibility: hidden; }
+@media (min-width: 60em) {
+  .consent { left: auto; right: var(--pad); max-width: 640px; }
+  body.bar-on .consent { bottom: calc(var(--bar-h) + 1.75rem); }
+}
+
+/* =========================================================================
+   Motion
+   Differentiated on purpose: section heads and media rise, body copy does not.
+   Text appears; it does not perform. Nothing here is gated on JavaScript: a
+   page with the script blocked is fully visible from the first paint.
+   ========================================================================= */
+/* Scroll-driven, so the reveal needs no JavaScript at all — which is the point.
+   The previous build hid these elements behind `html.js` and relied on main.js to
+   put them back; a blocked or failed script left every section heading on the
+   page invisible. Here the hidden state only ever exists inside the animation,
+   so where scroll-driven animations are unsupported the content is simply static
+   and fully visible, which is the fallback the brief asks for.
+
+   `entry`-relative ranges rather than `cover`: an element that is already on
+   screen at load, or on a page too short to scroll, sits at 100% progress and
+   `both` fill leaves it in the end state. There is no way for it to get stuck
+   part-revealed. */
+@supports (animation-timeline: view()) {
+  .reveal {
+    animation: reveal-in 0.5s var(--ease) both;
+    animation-timeline: view();
+    animation-range: entry 8% entry 70%;
+  }
+  .img-reveal img {
+    animation: img-in 0.9s var(--ease) both;
+    animation-timeline: view();
+    animation-range: entry 0% entry 65%;
+  }
+}
+@keyframes reveal-in {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: none; }
+}
+/* Photography arrives behind its own clip, not on a fade: no layout shift, and
+   the crop is doing the work. */
+.img-reveal { overflow: hidden; }
+@keyframes img-in {
+  from { clip-path: inset(0 0 100% 0); }
+  to { clip-path: inset(0); }
+}
+
+/* The one deliberate moment on the page: the hero display line, once, on load.
+   Deliberately not driven by main.js — this is the H1, and a script that fails
+   to load must not be able to leave it clipped to nothing. A load-time CSS
+   animation cannot fail that way. */
+.hero__title { animation: line-in 0.7s var(--ease) both; }
+@keyframes line-in {
+  from { clip-path: inset(0 0 105% 0); }
+  to { clip-path: inset(-20% -20% -20% -20%); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reveal, .img-reveal img, .hero__title { animation: none; }
+  .reveal { opacity: 1; transform: none; }
+  .img-reveal img, .hero__title { clip-path: none; }
+}
+
+/* =========================================================================
+   Breadcrumbs + legal pages
+   ========================================================================= */
 .breadcrumbs ol { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; list-style: none; }
 .breadcrumbs li { font-size: 0.78rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--stone-dim); }
 .breadcrumbs li + li::before { content: "/"; margin-right: 0.5rem; color: var(--line); }
@@ -432,184 +1113,56 @@ html.js .img-reveal.in img { opacity: 1; transform: scale(1); }
 .breadcrumbs a:hover { color: var(--gold); }
 .breadcrumbs [aria-current="page"] { color: var(--gold); }
 
-/* ---------- legal pages (privacy) ---------- */
-.nav--solid { background: var(--ink-2); border-bottom-color: var(--line); }
-.legal { padding-top: calc(72px + clamp(2rem, 6vw, 4rem)); padding-bottom: clamp(4rem, 10vw, 7rem); }
-.legal__inner { max-width: 74ch; }
-.legal h1 { font-size: clamp(2.2rem, 6vw, 3.4rem); margin-top: 0.6rem; }
-.legal__updated { margin-top: 0.9rem; font-size: 0.85rem; letter-spacing: 0.04em; color: var(--stone-dim); }
-.legal__intro { margin-top: 1.6rem; font-size: 1.08rem; color: var(--cream-2); }
-.glance { margin-top: 2.2rem; padding: 1.4rem 1.5rem; background: var(--ink-2); border: 1px solid var(--line); border-radius: var(--r); }
-.glance h2 {
-  font-family: var(--sans); font-size: 0.85rem; letter-spacing: 0.18em; text-transform: uppercase;
-  color: var(--gold); margin-bottom: 1rem;
-}
-.glance dt { color: var(--cream); font-size: 0.98rem; }
-.glance dd { color: var(--stone); margin-bottom: 0.9rem; }
-.glance dd:last-child { margin-bottom: 0; }
+/* Answers first, legal text after. No sticky bar on this page: it has nothing
+   to book. */
+.legal { padding-block: 1.75rem var(--sec); }
+.legal__head .hex { margin-bottom: 0.875rem; }
+.legal h1 { font-size: clamp(2.625rem, 10.8vw, 4rem); line-height: 0.96; letter-spacing: -0.04em; }
+.legal__updated { margin-top: 0.625rem; font-size: 0.78rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--stone-dim); }
+.legal__aside { display: grid; gap: 0.625rem; margin-top: 1.625rem; }
+.legal__aside .btn--ghost { min-height: 48px; font-size: 0.875rem; }
+.legal__intro { margin-top: 1.25rem; color: var(--stone); font-size: 0.96875rem; line-height: 1.65; }
+.glance__label { margin: 1.75rem 0 0.75rem; }
+.glance { display: grid; gap: 0.5rem; }
+.glance__item { padding: 0.875rem; border: 1px solid var(--line); border-radius: 12px; background: var(--ink-2); }
+.glance__q { font: 500 1.0625rem/1.3 var(--display); color: var(--cream); }
+.glance__a { margin-top: 0.375rem; font-size: 0.90625rem; line-height: 1.6; color: var(--stone); }
+.legal__secs { margin-top: 1.875rem; }
+.legal__sec { padding-block: 1.25rem; border-top: 1px solid var(--line); }
+.legal__sec h2 { margin-bottom: 0.5rem; font-size: 1.5rem; line-height: 1.1; letter-spacing: -0.02em; color: var(--cream); }
+.legal__sec p { color: var(--stone); font-size: 0.9375rem; line-height: 1.7; }
+.legal__sec p + p { margin-top: 0.75rem; }
+.legal__nap { margin-top: 1.375rem; font-size: 0.78rem; line-height: 1.7; letter-spacing: 0.06em; color: var(--stone-dim); }
 
-.legal__sec { margin-top: 2.6rem; }
-.legal__sec h2 {
-  font-family: var(--sans); font-size: 0.85rem; letter-spacing: 0.18em; text-transform: uppercase;
-  color: var(--gold); margin-bottom: 0.9rem;
-}
-.legal__sec p { color: var(--stone); margin-top: 0.8rem; }
-.legal__sec p:first-of-type { margin-top: 0; }
-
-/* ---------- responsive ---------- */
-/* Intermediate band: five nav items (Services / Products / The shop / Gallery / Visit) in
-   Greek need roughly 1150px at full size. Below that, tighten the type and the gaps rather
-   than dropping straight to the burger, so laptops keep the horizontal nav. */
-@media (max-width: 1023px) and (min-width: 861px) {
-  /* Three service columns get too narrow for "Θεραπεία τριχωτού" + duration + price on
-     one line here, so drop to two and let the third group wrap under. */
-  .svc-grid { grid-template-columns: repeat(2, 1fr); }
-}
-
-@media (max-width: 1220px) and (min-width: 861px) {
-  .nav__logo { font-size: 1rem; letter-spacing: 0.1em; }
-  .nav__menu { gap: 1rem; }
-  .nav__links { gap: 0.95rem; }
-  .nav__links a { font-size: 0.75rem; letter-spacing: 0.04em; }
-  .btn--nav { padding: 0.65em 1em; font-size: 0.75rem; }
-  .lang { gap: 0.35rem; font-size: 0.75rem; }
-}
-/* Last 100px before the burger takes over at 860px: the Greek nav still just fits, but
-   only with the logo and the link gaps pulled in further. */
-@media (max-width: 960px) and (min-width: 861px) {
-  .nav__logo { font-size: 0.88rem; letter-spacing: 0.06em; }
-  /* The 12px floor costs horizontal room, so it is bought back from the gaps and the CTA
-     padding instead of from the type: at 865px (worst case, Greek labels) the logo and the
-     menu still clear each other, measured. */
-  .nav__menu { gap: 0.7rem; }
-  .nav__links { gap: 0.5rem; }
-  /* 0.75rem = 12px exactly, the readability floor (CN-034). Measured at 861, 900 and
-     960px: the Greek labels still clear the logo with ~50px to spare once the tracking
-     comes down, so this range no longer trades legibility for fit. */
-  .nav__links a { font-size: 0.75rem; letter-spacing: 0.02em; }
-  .btn--nav { padding: 0.6em 0.7em; font-size: 0.75rem; }
+@media (min-width: 60em) {
+  .legal__grid { display: grid; grid-template-columns: 400px 1fr; gap: 4rem; padding-block: 1rem var(--sec); }
+  /* The title column stays with you down a long legal page. */
+  .legal__head { position: sticky; top: calc(var(--nav-h) + 2.5rem); align-self: start; }
+  .legal__head .hex { margin-bottom: 1.125rem; }
+  .legal h1 { font-size: 4rem; line-height: 0.94; letter-spacing: -0.045em; }
+  .legal__updated { margin-top: 0.875rem; font-size: 0.8125rem; }
+  .legal__body { max-width: 68ch; }
+  .legal__intro { margin-top: 0; font-size: 1.1875rem; line-height: 1.7; }
+  .glance__label { margin: 2.125rem 0 0.875rem; }
+  .glance { grid-template-columns: 1fr 1fr; gap: 0.75rem; }
+  .glance__item { padding: 1.125rem; border-radius: var(--r-card); }
+  .glance__q { font-size: 1.25rem; line-height: 1.25; }
+  .glance__a { margin-top: 0.5rem; font-size: 0.9375rem; }
+  .legal__secs { margin-top: 2.5rem; }
+  .legal__sec { padding-block: 1.625rem; }
+  .legal__sec h2 { margin-bottom: 0.625rem; font-size: 2rem; line-height: 1.05; letter-spacing: -0.03em; }
+  .legal__sec p { font-size: 1.0625rem; line-height: 1.75; }
+  .legal__nap { margin-top: 2.125rem; font-size: 0.8125rem; }
 }
 
-@media (max-width: 860px) {
-  body { font-size: 16px; }
-  /* The ticker becomes a static wrapped strip here. A scrolling marquee is overflow:hidden
-     by definition, and at phone width that is exactly what the audit reads as text cut off
-     (MB-108) — so on phones the same words simply wrap and stay whole. The clone is
-     dropped so nothing reads twice, and main.js skips the animation at this width. */
-  /* The desktop ticker runs edge to edge because it scrolls; a wrapped block has to sit
-     inside the same gutter as every other section, or the last word touches the bezel. */
-  .marquee { overflow: visible; padding-inline: var(--pad); }
-  .marquee__track { flex-wrap: wrap; justify-content: center; gap: 0.5rem 1.2rem; transform: none !important; }
-  .marquee__track [data-marquee-clone] { display: none; }
-  /* Wrapped, the interpunct separators end up orphaned at the end of every line, so the
-     gap does the separating instead — and the type comes down a step, because four lines
-     of decoration is a lot of thumb travel on a phone. */
-  .marquee__track .dot { display: none; }
-  .marquee__track span { font-size: 1.05rem; }
-
-  .legal { padding-top: calc(64px + 1.6rem); }
-  .nav__menu { position: fixed; inset: 0; flex-direction: column; justify-content: center; gap: 2rem;
-    background: rgba(16, 15, 13, 0.97); backdrop-filter: blur(10px);
-    transform: translateX(100%); transition: transform 0.5s var(--ease); }
-  body.menu-open .nav__menu { transform: none; }
-  .nav__links { flex-direction: column; text-align: center; gap: 1.4rem; }
-  /* EL / EN measured 20x26 and 22x26 — inside the off-canvas menu, where the only input
-     is a thumb. Square them off at 48. */
-  .lang a { min-width: 48px; min-height: 48px; display: inline-flex; align-items: center; justify-content: center; padding: 0; }
-  .nav__links a { font-size: 1.1rem; min-height: 48px; display: inline-flex; align-items: center; justify-content: center; }
-  /* The burger measured 38x28 and sits in the far corner from a thumb (MB-101): the box
-     goes to 48x48 while the three bars stay 26px wide. */
-  .nav__burger { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px; z-index: 70; background: none; border: 0; cursor: pointer; min-width: 48px; min-height: 48px; padding: 6px; }
-  .nav__burger span { width: 26px; height: 2px; background: var(--cream); transition: transform 0.35s var(--ease), opacity 0.35s; }
-  body.menu-open .nav__burger span:nth-child(1) { transform: translateY(7px) rotate(45deg); }
-  body.menu-open .nav__burger span:nth-child(2) { opacity: 0; }
-  body.menu-open .nav__burger span:nth-child(3) { transform: translateY(-7px) rotate(-45deg); }
-
-  .proof__grid { grid-template-columns: 1fr; text-align: center; gap: 1.2rem; justify-items: center; }
-  .svc-grid { grid-template-columns: 1fr; }
-  .prod-grid { grid-template-columns: repeat(2, 1fr); }
-  .about__grid { grid-template-columns: 1fr; }
-  .about__media { max-width: 420px; }
-  .gal__grid { grid-template-columns: 1fr; }
-  .gal__cell img, .gal__cell--wide img { aspect-ratio: 4/3; }
-  .visit__grid { grid-template-columns: 1fr; }
-  .footer__top { flex-direction: column; }
-  /* the floating booking icon sits bottom-right on mobile — drop the scroll cue there to avoid overlap */
-  .scroll-cue { display: none; }
-  /* stack the hero CTAs full-width so both stay comfortably tappable on narrow screens */
-  .hero__actions { flex-direction: column; align-items: stretch; }
-  .hero__actions .btn { justify-content: center; }
-}
-
-/* Two product columns get too cramped for the description text on a phone, so the card
-   turns into a row: shot on the left, copy on the right. The shot column is deliberately
-   wide (46%) — the cut-outs share one canvas scaled to the products' real relative sizes,
-   so a narrow item like the 35 ml box only occupies a third of its canvas width and goes
-   unreadably small in a slimmer column. */
-@media (max-width: 560px) {
-  .prod-grid { grid-template-columns: 1fr; }
-  .prod { flex-direction: row; align-items: stretch; }
-  .prod__shot {
-    flex: 0 0 46%; aspect-ratio: auto; min-height: 8.5rem;
-    border-bottom: 0; border-right: 1px solid var(--line);
-  }
-  .prod__shot img { padding: 7% 4%; }
-  .prod__body { padding: 1rem 1.1rem 1.1rem; }
-  .prod__name { font-size: 1.2rem; }
-  .prod__desc { font-size: 0.86rem; }
-}
-
-/* ---------- cookie consent banner (Consent Mode v2) ---------- */
-/* Bottom-left card on desktop so it clears the bottom-right booking fab; on mobile it
-   lifts above the fab and spans the width. Shown by main.js only until a choice is made. */
-.consent {
-  position: fixed; z-index: 80;
-  left: var(--pad); bottom: var(--pad);
-  max-width: min(30rem, calc(100vw - 2 * var(--pad)));
-  display: grid; gap: 0.9rem;
-  padding: 1.1rem 1.2rem;
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: var(--r);
-  box-shadow: 0 14px 44px rgba(0, 0, 0, 0.55);
-  animation: consent-in 0.5s var(--ease) both;
-}
-.consent[hidden] { display: none; }
-.consent__text { font-family: var(--sans); font-size: 0.85rem; line-height: 1.55; color: var(--stone); }
-.consent__actions { display: flex; gap: 0.6rem; justify-content: flex-end; }
-.consent__btn { padding: 0.62em 1.1em; font-size: 0.8rem; min-height: 48px; }
-@keyframes consent-in { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
-@media (prefers-reduced-motion: reduce) { .consent { animation: none; } }
-@media (max-width: 560px) {
-  /* clear the floating booking fab (bottom-right, ~3.4rem tall) by lifting the banner */
-  .consent { left: var(--pad); right: var(--pad); bottom: calc(var(--pad) + 4.4rem); max-width: none; }
-}
-
-/* ---------- 404 page ---------- */
-.nf-body { min-height: 100vh; display: flex; flex-direction: column; background: var(--ink); }
-/* In-flow minimal header (the site nav is position:fixed; the 404 wants it in flow). */
-.nav--min {
-  position: static; background: rgba(16, 15, 13, 0.9);
-  border-bottom: 1px solid var(--line); padding-block: 1rem;
-}
-.notfound {
-  flex: 1; display: grid; place-items: center; text-align: center;
-  padding: clamp(3.5rem, 12vh, 8rem) var(--pad);
-  background: radial-gradient(120% 80% at 50% -10%, rgba(201, 162, 75, 0.1), transparent 60%), var(--ink);
-}
+/* =========================================================================
+   404
+   ========================================================================= */
+.nf-body { min-height: 100svh; display: flex; flex-direction: column; background: var(--ink); }
+.notfound { flex: 1; display: grid; place-items: center; text-align: center; padding: var(--sec) var(--pad); }
 .notfound__inner { max-width: 40rem; }
-.notfound__code {
-  font-family: var(--serif); font-weight: 700; line-height: 0.9;
-  font-size: clamp(5.5rem, 20vw, 11rem); letter-spacing: 0.02em;
-  color: transparent; -webkit-text-stroke: 1.4px var(--gold); opacity: 0.85;
-  margin-bottom: 1.4rem;
-}
-.notfound__title {
-  font-family: var(--serif); color: var(--cream);
-  font-size: clamp(1.6rem, 5vw, 2.6rem); line-height: 1.12; margin-bottom: 1rem;
-}
-.notfound__text {
-  font-family: var(--sans); color: var(--stone); line-height: 1.6;
-  font-size: 1rem; max-width: 34rem; margin: 0 auto 2.2rem;
-}
-.notfound__actions { display: flex; flex-wrap: wrap; gap: 0.8rem; justify-content: center; }
+.notfound .hex { margin: 0 auto 1rem; }
+.notfound__code { font: 500 3.5rem/1 var(--display); letter-spacing: -0.04em; }
+.notfound__title { margin-top: 0.625rem; font-size: clamp(1.875rem, 7vw, 3rem); }
+.notfound__text { margin-top: 0.875rem; color: var(--stone); font-size: 0.96875rem; }
+.notfound__actions { display: flex; flex-wrap: wrap; gap: 0.5rem; justify-content: center; margin-top: 1.5rem; }

@@ -1,24 +1,26 @@
 /* =========================================================================
-   Marino Barbero — motion layer
-   Native scroll + IntersectionObserver reveals, GSAP hero + parallax,
-   marquee, magnetic buttons, custom cursor, mobile menu.
-   GSAP + ScrollTrigger loaded from CDN in <head>. Degrades gracefully.
+   Marino Barbero — behaviour layer
+
+   No libraries. GSAP and ScrollTrigger were dropped in the 2026-08 redesign:
+   the two things they were doing here — a hero line reveal and a parallax
+   scrub — are now CSS (clip-path animation, no scroll coupling), and 70KB of
+   CDN JavaScript on a paid-traffic landing page with Quality Score 3 was
+   paying for effects the brief asked us to remove anyway. Dropping them also
+   takes cdnjs.cloudflare.com out of script-src.
+
+   Everything below is progressive: the page is fully readable and bookable
+   with this file blocked. Nothing here controls whether content is visible —
+   the service rows ship as real links, and the booking sheet is an enhancement
+   over those links, never a gate in front of them.
    ========================================================================= */
 (function () {
   "use strict";
   const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  const hasGSAP = typeof window.gsap !== "undefined";
-  const isDesktop = window.matchMedia("(hover: hover) and (pointer: fine)").matches;
 
-  if ("scrollRestoration" in history) history.scrollRestoration = "manual";
-
-  /* ---------- Nav: solid background after scroll ---------- */
-  const nav = document.querySelector(".nav");
-  const onScroll = () => { if (nav) nav.classList.toggle("scrolled", window.scrollY > 40); };
-  onScroll();
-  window.addEventListener("scroll", onScroll, { passive: true });
-
-  /* ---------- Anchor links (also close mobile menu) ---------- */
+  /* ---------- Anchor links ---------- */
+  // Native smooth scroll does the work (scroll-behavior in the stylesheet); this
+  // only exists so scroll-margin-top is respected consistently and so a hash
+  // never lands the target under the sticky nav.
   document.querySelectorAll('a[href^="#"]').forEach((a) => {
     a.addEventListener("click", (e) => {
       const id = a.getAttribute("href");
@@ -26,189 +28,162 @@
       const el = document.querySelector(id);
       if (!el) return;
       e.preventDefault();
-      document.body.classList.remove("menu-open");
-      el.scrollIntoView({ behavior: reduce ? "auto" : "smooth" });
+      el.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "start" });
     });
   });
 
-  /* ---------- Reveal on scroll ---------- */
-  const revealEls = document.querySelectorAll(".reveal, [data-stagger], .img-reveal");
-  if (reduce) {
-    revealEls.forEach((el) => el.classList.add("in"));
-  } else {
-    const io = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          if (!entry.isIntersecting) return;
-          const el = entry.target;
-          if (el.hasAttribute("data-stagger")) {
-            [...el.children].forEach((child, i) => { child.style.transitionDelay = i * 90 + "ms"; });
-          }
-          el.classList.add("in");
-          io.unobserve(el);
-        });
-      },
-      { threshold: 0.16, rootMargin: "0px 0px -8% 0px" }
+  /* Reveals are pure CSS (animation-timeline: view()) and the hero line is a
+     load-time CSS animation — see styles.css. Deliberately not here: nothing
+     about whether the page is legible should depend on this file loading. */
+
+  /* ---------- Video loops ----------
+     Poster-first, in-view only, paused out of view, and never fetched at all on
+     a saved-data or 2g connection or under reduced motion. `preload="none"` in
+     the markup means nothing is requested until play() is called, so the guard
+     below is the whole opt-out: no play(), no bytes. */
+  const loops = document.querySelectorAll("video[data-loop]");
+  if (loops.length) {
+    const conn = navigator.connection || {};
+    const cheap = conn.saveData === true || conn.effectiveType === "2g" || conn.effectiveType === "slow-2g";
+    if (!reduce && !cheap) {
+      const vio = new IntersectionObserver(
+        (entries) => {
+          entries.forEach((entry) => {
+            const v = entry.target;
+            if (entry.isIntersecting) { const p = v.play(); if (p && p.catch) p.catch(() => {}); }
+            else v.pause();
+          });
+        },
+        { threshold: 0.3 }
+      );
+      loops.forEach((v) => vio.observe(v));
+    }
+  }
+
+  /* ---------- Service picker → sticky bar → booking sheet ----------
+     The structural change of this redesign. The customer used to choose twice:
+     once mentally on our price table, then again for real in Fresha's generic
+     menu. Now the choice happens here, and the hand-off carries it.
+
+     Rows arrive as <a href="…fresha…"> so that a JS-less visitor still gets the
+     menu. On init each one is replaced by a real <button aria-pressed> — the tag
+     is swapped rather than the role patched onto the anchor, because a link that
+     toggles a selection is neither a link nor a button to assistive tech, and
+     aria-pressed on an <a> is not valid. Same box, same bytes, no layout shift. */
+  const picker = document.getElementById("picker");
+  const bar = document.getElementById("bar");
+  const sheet = document.getElementById("sheet");
+
+  if (picker) {
+    // i18n and the Fresha base URL travel on the container, so nothing that a
+    // translator owns is hardcoded in this file.
+    const T = picker.dataset;
+    const rows = [];
+
+    picker.querySelectorAll("a.svc").forEach((a) => {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.className = a.className;
+      b.innerHTML = a.innerHTML;
+      Object.keys(a.dataset).forEach((k) => { b.dataset[k] = a.dataset[k]; });
+      b.setAttribute("aria-pressed", "false");
+      a.replaceWith(b);
+      rows.push(b);
+    });
+
+    const totalK = document.getElementById("svc-total-k");
+    const totalV = document.getElementById("svc-total-v");
+    const barTitle = document.getElementById("bar-title");
+    const barSub = document.getElementById("bar-sub");
+    const shSvc = document.getElementById("sheet-svc");
+    const shDur = document.getElementById("sheet-dur");
+    const shTotal = document.getElementById("sheet-total");
+    const shGo = document.getElementById("sheet-go");
+
+    // Single-select: one service, one price, one unambiguous action. Tapping the
+    // held row lets go of it.
+    let held = null;
+
+    const render = () => {
+      const armed = Boolean(held);
+      document.body.classList.toggle("sheet-armed", armed);
+
+      const label = armed ? held.dataset.name : "";
+      const dur = armed ? held.dataset.dur + " " + T.unit : "";
+      const price = armed ? "€" + held.dataset.price : "";
+
+      if (totalK) totalK.textContent = armed ? label + " · " + dur : T.empty;
+      if (totalV) totalV.textContent = armed ? price : "—";
+
+      if (barTitle) barTitle.textContent = armed ? label + " · " + dur + " · " + price : T.open;
+      if (barSub) barSub.textContent = armed ? T.sub : T.via;
+
+      if (shSvc) shSvc.textContent = armed ? label : T.any;
+      if (shDur) shDur.textContent = armed ? dur : T.choose;
+      if (shTotal) shTotal.textContent = armed ? price : T.from;
+      // The ticked service travels with the click. Fresha ignores query keys it
+      // does not know, so today this carries the choice into our own analytics
+      // rather than pre-filling their menu — the value is the same URL either
+      // way, and it is ready the day Fresha accepts a service parameter.
+      if (shGo) shGo.href = armed ? T.fresha + "?service=" + encodeURIComponent(held.dataset.svc) : T.fresha;
+    };
+
+    rows.forEach((row) => {
+      row.addEventListener("click", () => {
+        const on = row === held;
+        rows.forEach((r) => r.setAttribute("aria-pressed", "false"));
+        held = on ? null : row;
+        if (held) held.setAttribute("aria-pressed", "true");
+        render();
+      });
+    });
+
+    render();
+  }
+
+  /* ---------- Sticky bar: enters once, when the hero leaves ----------
+     Retires the old floating fab and its pulse. 200ms opacity + 8px rise, and
+     then it never animates again. */
+  const hero = document.querySelector(".hero");
+  if (bar && hero) {
+    const bio = new IntersectionObserver(
+      (entries) => { document.body.classList.toggle("bar-on", !entries[0].isIntersecting); },
+      { threshold: 0, rootMargin: "-40% 0px 0px 0px" }
     );
-    revealEls.forEach((el) => io.observe(el));
+    bio.observe(hero);
+  } else if (bar) {
+    document.body.classList.add("bar-on");
   }
 
-  /* ---------- Hero scene + parallax ---------- */
-  if (hasGSAP && !reduce) {
-    const { gsap } = window;
-    if (window.ScrollTrigger) gsap.registerPlugin(window.ScrollTrigger);
+  /* ---------- Booking sheet ---------- */
+  if (sheet) {
+    let lastFocus = null;
+    const closeBtn = sheet.querySelector(".sheet__close");
 
-    // Intro reveal — only when the tab is visible at load. A background tab (or a
-    // preview with a throttled rAF ticker) freezes GSAP mid-tween; guarding here
-    // means the hero content is never left stuck at opacity:0 (CSS shows it by default).
-    if (!document.hidden) {
-      const lines = document.querySelectorAll(".hero__title .line span");
-      if (lines.length) {
-        gsap.set(lines, { yPercent: 115 });
-        gsap.to(lines, { yPercent: 0, duration: 1.2, stagger: 0.12, ease: "expo.out", delay: 0.2 });
-      }
-      gsap.from(".hero .eyebrow, .hero__sub, .hero__actions", {
-        y: 26, opacity: 0, duration: 1, stagger: 0.12, ease: "power3.out", delay: 0.55,
-      });
-    }
-
-    if (window.ScrollTrigger) {
-      const heroImg = document.querySelector(".hero__media img");
-      if (heroImg) {
-        gsap.to(heroImg, {
-          yPercent: 12, ease: "none",
-          scrollTrigger: { trigger: ".hero", start: "top top", end: "bottom top", scrub: true },
-        });
-      }
-      document.querySelectorAll("[data-parallax]").forEach((el) => {
-        const amt = parseFloat(el.getAttribute("data-parallax")) || 8;
-        gsap.to(el, {
-          yPercent: -amt, ease: "none",
-          scrollTrigger: { trigger: el, start: "top bottom", end: "bottom top", scrub: true },
-        });
-      });
-    }
-  }
-
-  /* ---------- Marquee (seamless loop) ---------- */
-  // Below 860px the CSS turns the strip into a wrapped static row — a scrolling ticker is
-  // overflow:hidden by definition, and that is what the mobile audit reads as clipped text
-  // (MB-108). So the loop only runs at the widths where the strip actually scrolls, and it
-  // starts and stops on the media query rather than being decided once at load: a window
-  // dragged across 861px (or a tablet rotated) has to end up in the right state, and a
-  // one-off check at load time gets that wrong in both directions.
-  const wide = window.matchMedia("(min-width: 861px)");
-  document.querySelectorAll(".marquee").forEach((m) => {
-    const track = m.querySelector(".marquee__track");
-    if (!track || reduce) return;
-    // Both copies of the strip come from build.js, not from innerHTML here: duplicating at
-    // runtime made the rendered DOM differ from the served HTML (MB-105). The half-width
-    // maths is unchanged — there are still exactly two copies.
-    let x = 0;
-    let raf = null;
-    let paused = false;
-    const speed = 0.4;
-    let half = track.scrollWidth / 2;
-    const tick = () => {
-      if (!paused) {
-        x -= speed;
-        if (-x >= half) x = 0;
-        track.style.transform = `translate3d(${x}px,0,0)`;
-      }
-      raf = requestAnimationFrame(tick);
-    };
-    const start = () => { if (raf === null) { half = track.scrollWidth / 2; raf = requestAnimationFrame(tick); } };
-    const stop = () => {
-      if (raf === null) return;
-      cancelAnimationFrame(raf);
-      raf = null;
-      x = 0;
-      track.style.transform = "";  // hand the strip back to the stylesheet
-    };
-    m.addEventListener("mouseenter", () => (paused = true));
-    m.addEventListener("mouseleave", () => (paused = false));
-    window.addEventListener("resize", () => { if (raf !== null) half = track.scrollWidth / 2; });
-    wide.addEventListener("change", (e) => (e.matches ? start() : stop()));
-    if (wide.matches) start();
-  });
-
-  /* ---------- Magnetic buttons (desktop) ---------- */
-  if (isDesktop && !reduce && hasGSAP) {
-    const { gsap } = window;
-    document.querySelectorAll("[data-magnetic]").forEach((btn) => {
-      btn.addEventListener("mousemove", (e) => {
-        const r = btn.getBoundingClientRect();
-        const mx = e.clientX - (r.left + r.width / 2);
-        const my = e.clientY - (r.top + r.height / 2);
-        gsap.to(btn, { x: mx * 0.3, y: my * 0.4, duration: 0.5, ease: "power3.out" });
-      });
-      btn.addEventListener("mouseleave", () => {
-        gsap.to(btn, { x: 0, y: 0, duration: 0.6, ease: "elastic.out(1, 0.4)" });
-      });
-    });
-  }
-
-  /* ---------- Custom cursor (desktop) ---------- */
-  if (isDesktop && !reduce) {
-    const ring = document.querySelector(".cursor");
-    const dot = document.querySelector(".cursor-dot");
-    if (ring && dot) {
-      let rx = 0, ry = 0, dx = 0, dy = 0;
-      window.addEventListener("mousemove", (e) => {
-        dx = e.clientX; dy = e.clientY;
-        dot.style.transform = `translate(${dx}px, ${dy}px) translate(-50%, -50%)`;
-      });
-      const follow = () => {
-        rx += (dx - rx) * 0.18; ry += (dy - ry) * 0.18;
-        ring.style.transform = `translate(${rx}px, ${ry}px) translate(-50%, -50%)`;
-        requestAnimationFrame(follow);
-      };
-      follow();
-      document.querySelectorAll("a, button, [data-magnetic], .gal__cell").forEach((el) => {
-        el.addEventListener("mouseenter", () => document.body.classList.add("cursor-active"));
-        el.addEventListener("mouseleave", () => document.body.classList.remove("cursor-active"));
-      });
-    }
-  }
-
-  /* ---------- Mobile menu toggle ---------- */
-  const burger = document.querySelector(".nav__burger");
-  if (burger) burger.addEventListener("click", () => document.body.classList.toggle("menu-open"));
-
-  /* ---------- Refresh ScrollTrigger after full load ---------- */
-  window.addEventListener("load", () => {
-    if (hasGSAP && window.ScrollTrigger) {
-      if (window.ScrollTrigger.clearScrollMemory) window.ScrollTrigger.clearScrollMemory("manual");
-      window.scrollTo(0, 0);
-      requestAnimationFrame(() => requestAnimationFrame(() => window.ScrollTrigger.refresh()));
-    }
-  });
-  let _rt;
-  window.addEventListener("resize", () => {
-    clearTimeout(_rt);
-    _rt = setTimeout(() => { if (hasGSAP && window.ScrollTrigger) window.ScrollTrigger.refresh(); }, 200);
-  });
-
-  /* ---------- Booking panel (floating icon → slide-in overlay → Fresha) ---------- */
-  const bkOpen = document.getElementById("bk-open");
-  const bkPanel = document.getElementById("bk-panel");
-  if (bkOpen && bkPanel) {
     const open = () => {
-      document.body.classList.add("bk-on");
-      bkPanel.setAttribute("aria-hidden", "false");
-      bkOpen.setAttribute("aria-expanded", "true");
-      const first = bkPanel.querySelector(".bk-close");
-      if (first) first.focus();
+      lastFocus = document.activeElement;
+      document.body.classList.add("sheet-on");
+      sheet.removeAttribute("aria-hidden");
+      // The panel is visibility:hidden until the class lands, and nothing inside a
+      // visibility:hidden subtree can take focus — so focus() one frame later,
+      // once the style has actually been recalculated. Calling it inline looks
+      // right and silently does nothing.
+      requestAnimationFrame(() => { if (closeBtn) closeBtn.focus(); });
     };
     const close = () => {
-      document.body.classList.remove("bk-on");
-      bkPanel.setAttribute("aria-hidden", "true");
-      bkOpen.setAttribute("aria-expanded", "false");
-      bkOpen.focus();
+      document.body.classList.remove("sheet-on");
+      sheet.setAttribute("aria-hidden", "true");
+      if (lastFocus && lastFocus.focus) lastFocus.focus();
     };
-    bkOpen.addEventListener("click", open);
-    document.querySelectorAll("[data-bk-close]").forEach((el) => el.addEventListener("click", close));
-    document.addEventListener("keydown", (e) => { if (e.key === "Escape" && document.body.classList.contains("bk-on")) close(); });
+
+    document.querySelectorAll("[data-sheet-open]").forEach((el) => el.addEventListener("click", open));
+    sheet.querySelectorAll("[data-sheet-close]").forEach((el) => el.addEventListener("click", close));
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape" && document.body.classList.contains("sheet-on")) close();
+    });
+    // The hand-off leaves in a new tab, so the sheet is dismissed behind it
+    // rather than left open over the page the visitor comes back to.
+    sheet.querySelectorAll("a[href]").forEach((a) => a.addEventListener("click", () => setTimeout(close, 80)));
   }
 
   /* ---------- Cookie consent (Google Consent Mode v2) ---------- */
@@ -232,13 +207,19 @@
     };
     let stored = null;
     try { stored = localStorage.getItem(KEY); } catch (e) {}
-    if (stored !== "granted" && stored !== "denied") consent.hidden = false;
+    // The body flag lets the hero reserve room for the banner: the primary CTA
+    // must not sit underneath a notice that appears on first load.
+    const show = (on) => {
+      consent.hidden = !on;
+      document.body.classList.toggle("consent-on", on);
+    };
+    if (stored !== "granted" && stored !== "denied") show(true);
     const decide = (val) => {
       try { localStorage.setItem(KEY, val); } catch (e) {}
       if (val === "granted" && typeof window.gtag === "function") {
         window.gtag("consent", "update", GRANTS);
       }
-      consent.hidden = true;
+      show(false);
     };
     const accept = consent.querySelector("[data-consent-accept]");
     const decline = consent.querySelector("[data-consent-decline]");
@@ -260,7 +241,7 @@
             ad_user_data: "denied", ad_personalization: "denied",
           });
         }
-        consent.hidden = false;
+        show(true);
         consent.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "nearest" });
       });
     });
@@ -271,14 +252,18 @@
   // tag. So the last thing measurable on our side is the hand-off click, and that is what
   // both GA4 and Google Ads count as a conversion here.
   //
-  // Delegated on document rather than bound per link: the Fresha CTA appears in the nav,
-  // hero, services, visit, footer, the slide-in booking panel and the 404 page, and the
-  // panel's markup is regenerated by build.js. One listener survives all of that.
+  // Delegated on document rather than bound per link: the Fresha CTA appears in the hero,
+  // the sticky bar, the booking sheet, the service rows before JS upgrades them, the
+  // footer and the 404 page. One listener survives all of that.
   //
   // Event names only, no send_to — the Google Ads conversion actions are created by
   // importing these GA4 events, so no conversion label has to be hardcoded (and no code
   // change is needed when the Ads account is finally set up). The AW- config emitted in
   // <head> is still what enables the conversion linker and remarketing.
+  //
+  // book_click now carries the picked service where there is one. It is the only place the
+  // page can answer "did the picker actually change what people book", which is the whole
+  // premise of this redesign.
   const CONVERSIONS = [
     { match: (h) => h.indexOf("fresha.com") > -1, event: "book_click" },
     { match: (h) => h.indexOf("wa.me") > -1, event: "whatsapp_click" },
@@ -290,9 +275,15 @@
     if (!a) return;
     const href = a.getAttribute("href") || "";
     const hit = CONVERSIONS.find((c) => c.match(href));
+    if (!hit) return;
+    const params = { link_url: a.href };
+    if (hit.event === "book_click") {
+      const held = document.querySelector('#picker .svc[aria-pressed="true"]');
+      params.service = held ? held.dataset.svc : "none";
+    }
     // Every one of these links is target="_blank" or a tel: hand-off, so the current
     // document is never torn down — the hit has time to leave without transport_type.
-    if (hit) window.gtag("event", hit.event, { link_url: a.href });
+    window.gtag("event", hit.event, params);
   });
 
   /* ---------- Footer year ---------- */

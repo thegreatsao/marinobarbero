@@ -1,4 +1,4 @@
-// Marino Barbero — The Barber Shop · content model (EL primary, EN; RU can be added later)
+// Marino Barbero — The Barber Shop · content model (EN primary, EL; RU can be added later)
 // Single source of truth. build.js renders one template per language.
 // Prices/durations flagged (CONFIRM) in the business brief — verify before final launch.
 
@@ -50,13 +50,20 @@ const SITE = {
   geo: { lat: 34.7583, lng: 32.4130 },
 
   rating: { value: "5.0", count: "128" },
-  langs: ["el", "en"], // first is the document root (primary = Greek)
+  // First entry is the document root. English leads as of the 2026-08 redesign: the
+  // demand is not Greek. 1820 of 1852 Search Console impressions and 92 of 106 GA4
+  // sessions land on English, /en outdrew / by 62 to 14, and Greek-script queries are
+  // 0.9% of impressions (90d to 21.08.2026). So English moved to "/" and Greek to
+  // "/el/"; netlify.toml 301s the old /en/* URLs onto the new root.
+  //
+  // Greek is not demoted in quality — same components, same design, same schema. Only
+  // the URL and the default changed. The one visual difference is display type: Playfair
+  // has no Greek coverage, so /el/ falls back to Georgia (see --display in styles.css).
+  langs: ["en", "el"],
 
   // Which language a search engine should offer someone whose own language matches
-  // neither. Greek is the root of the site, but the demand is not: 1820 of 1852 Search
-  // Console impressions and 92 of 106 GA4 sessions land on English, and Greek-script
-  // queries are 0.9% of impressions (90d to 21.08.2026). So x-default points at /en/
-  // while the root stays Greek for locals.
+  // neither. Same answer as before the language flip, for the same reason (the demand is
+  // English) — it now simply coincides with the root instead of pointing away from it.
   xDefaultLang: "en",
 
   // First day the site was in Google's index (sitemap submitted 24.07, first impressions
@@ -151,6 +158,29 @@ const PRODUCTS = [
   { key: "minotaur", img: "crazybull-minotaur", brand: "Crazy Bull", line: "Minotaur", size: "35 ml", schemaName: "Crazy Bull Minotaur Beard Oil" },
 ];
 
+// The Work section, one entry per cell, in render order. Everything the mockup shows in
+// this block that is not listed here does not exist yet — the before/after fade pairs, the
+// portrait of the barber, the detail crops and the two video loops are all still to be
+// shot (see §9 of REDESIGN-PROMPT.md). Nothing is faked to fill the grid: the layout is
+// driven by this list, so it stays composed at three cells and grows when files land.
+//
+// `img`   logical name in src/img, resolved to its content-hashed URL by build.js
+// `w`/`h` the file's real intrinsic size — the browser reserves the box from this ratio,
+//         and a wrong value here is a layout shift, not a cosmetic slip
+// `cap`   key into L[lang].gallery.captions
+// `span`  desktop mosaic width in grid columns (of 4); mobile is a single-file strip
+// `ratio` CSS aspect-ratio for the cell
+//
+// To add a video loop: give an entry `video: "clippers"` (base name of the .webm/.mp4 pair
+// in src/video) alongside `img`, which then becomes its poster. main.js loads it only on
+// entering the viewport, never on save-data / 2g / reduced-motion, and pauses it out of
+// view; build.js adds media-src 'self' to the CSP as soon as one exists. Two loops maximum
+// — that is a budget decision, not a style one.
+const GALLERY = [
+  { img: "interior.webp", w: 1600, h: 906, cap: "interior", span: 2, ratio: "16/11" },
+  { img: "interior-bg.webp", w: 1440, h: 1187, cap: "evening", span: 2, ratio: "16/11" },
+];
+
 const L = {
   el: {
     htmlLang: "el",
@@ -172,17 +202,23 @@ const L = {
         "Ανδρικό κουρείο στην Κάτω Πάφο. Fade, κούρεμα, περιποίηση γενιών — 5.0★ από 128 πελάτες. Κεριά styling & λάδι γενιών στο κατάστημα. Κλείσε ραντεβού online.",
       ogAlt: "Marino Barbero — κουρείο στην Κάτω Πάφο",
     },
-    nav: { services: "Υπηρεσίες", products: "Προϊόντα", about: "Το κουρείο", gallery: "Gallery", visit: "Πού θα μας βρεις", book: "Κλείσε ραντεβού" },
+    nav: { services: "Υπηρεσίες", about: "Το κουρείο", gallery: "Gallery", visit: "Πού θα μας βρεις", book: "Κλείσε ραντεβού" },
     hero: {
       eyebrow: "Ανδρικό Κουρείο · Κάτω Πάφος",
-      titleLines: ["Χρόνος", "για το τέλειο", "κούρεμα."],
+      // The headline is split so the last word can carry the gold gradient on its own
+      // (--metal + background-clip:text). One accented word per page, no more.
+      titleLead: "Χρόνος για το τέλειο",
+      titleAccent: "κούρεμα.",
       // "κουρείο" verbatim, in the paragraph and not only in the eyebrow above it: the
       // audit reads the opening paragraph, and it was carrying the synonym "μπαρμπέρικο".
       subtitle:
         "Ανδρικό κουρείο στην Κάτω Πάφο που αφιερώνει χρόνο σε κάθε κούρεμα. Fade, κλασικά κουρέματα και περιποίηση γενιών — με βαθμολογία 5.0★ από 128 πελάτες.",
       book: "Κλείσε ραντεβού",
       whatsapp: "WhatsApp",
-      scroll: "Κύλισε",
+      // Price above the fold. Pre-qualifies the visitor and matches the ad copy, which
+      // is one of the three Quality Score inputs. Both figures come from SERVICES.
+      pill: "από €18",
+      pillWide: "Από €18 · 30 λεπτά",
     },
     proof: {
       rating: "5.0",
@@ -191,11 +227,37 @@ const L = {
       quote: "«Παίρνει τον χρόνο του για ένα τέλειο κούρεμα.»",
       cta: "Δες τις κριτικές στο Google",
     },
-    marquee: ["Fade", "Κλασικό κούρεμα", "Περιποίηση γενιών", "Head massage", "Scalp treatment", "5.0★ · 128 κριτικές"],
+    // Fade is the hero of the Google Ads campaign and had no matching region on the page —
+    // the tightest ad-to-page message-match win available, and it feeds Quality Score.
+    //
+    // Everything asserted here comes from the confirmed Fresha menu (§2 of the business
+    // brief): the service exists under the name "Fade", 30 minutes, €18, same price as the
+    // classic cut. The fade heights are the standard names for the cut, not a claim about
+    // this shop's technique. Nothing about razors, talc or finishing practice is stated —
+    // none of it is confirmed, and the chair would have to honour it.
+    fade: {
+      label: "Το fade · 30 λεπτά · €18",
+      headingLead: "Ένα fade, σε",
+      headingAccent: "τριάντα λεπτά",
+      // {svc} is replaced with the Fresha service name, highlighted in gold.
+      body:
+        "Skin, low, mid ή high — πες στον μπαρμπέρη πόσο ψηλά θέλεις να ανεβαίνει το σβήσιμο. Κλείνεται ως {svc} στη Fresha, στην ίδια τιμή με το κλασικό κούρεμα.",
+      specs: [
+        ["Χρόνος", "30 λεπτά"],
+        ["Τιμή", "€18"],
+        ["Στη Fresha", "Fade"],
+      ],
+      caption: "Ολοκληρωμένο fade",
+    },
     services: {
       label: "Τιμοκατάλογος",
       heading: "Υπηρεσίες & τιμές",
-      note: "Οι τιμές είναι σε ευρώ. Πληρωμή στο κατάστημα (μετρητά / κάρτα).",
+      // The picker replaced the price table: tapping a row selects the service, the
+      // sticky bar arms with it, and the hand-off carries it. This line says so, because
+      // a table that suddenly responds to taps needs one sentence of explanation.
+      pickHint: "Διάλεξε μια υπηρεσία. Η μπάρα από κάτω γεμίζει και η Fresha ανοίγει σε αυτήν.",
+      totalEmpty: "Δεν έχεις διαλέξει ακόμη",
+      note: "Οι τιμές είναι σε ευρώ. Πληρωμή στο κατάστημα (μετρητά / κάρτα). Πέρνα και χωρίς ραντεβού αν είναι ελεύθερη καρέκλα — το ραντεβού απλώς κρατά την ώρα.",
       groups: [
         { cat: "cut", name: "Κουρέματα" },
         { cat: "beard", name: "Γένια & πλύσιμο" },
@@ -213,9 +275,14 @@ const L = {
       heading: "Ό,τι δουλεύουμε στην καρέκλα",
       intro:
         "Κεριά styling και περιποίηση γενιών που χρησιμοποιούμε καθημερινά στο κουρείο. Μπορείς να τα πάρεις μαζί σου μετά το κούρεμα.",
+      // Desktop has room for the second half of the truth: this is a shelf, not a shop.
+      introShop: "Διαθέσιμα στο κουρείο — δεν υπάρχει καλάθι εδώ και δεν στέλνουμε τίποτα.",
       from: "από",
       inShop: "Διαθέσιμο στο κουρείο",
       note: "Οι τιμές ξεκινούν από €10 ανά τεμάχιο. Πώληση στο κατάστημα (μετρητά / κάρτα). Ρώτησε τον μπαρμπέρη ποιο ταιριάζει στα μαλλιά σου.",
+      // Says out loud what the PRODUCTS comment says in code: the №1–№4 difference is
+      // unverified, so the copy differentiates by colour and nothing else.
+      noteCodes: "Οι κωδικοί Bio Wax διαφέρουν μόνο στο χρώμα — τίποτα για το κράτημα δεν δηλώνεται όσο δεν το επιβεβαιώνει ο κατασκευαστής.",
       cta: "Δες τα προϊόντα",
       names: {
         biowax_1: "Bio Wax №1", biowax_2: "Bio Wax №2", biowax_3: "Bio Wax №3", biowax_4: "Bio Wax №4",
@@ -251,10 +318,26 @@ const L = {
       quote: "«Παίρνει τον χρόνο του για ένα τέλειο κούρεμα.»",
       quoteAuthor: "— από κριτική πελάτη στο Google",
     },
-    gallery: { label: "Gallery", heading: "Μέσα στο κουρείο", alt: "Marino Barbero — κουρείο στην Κάτω Πάφο" },
+    // `intro` and `captions` describe only the photographs that actually exist. The shot
+    // list in the redesign brief (before/after pairs, a portrait of the barber, detail
+    // crops, two video loops) has not been shot yet: build.js renders one cell per entry
+    // in GALLERY, so a slot appears the moment a file does — and not before.
+    gallery: {
+      label: "Gallery",
+      heading: "Μέσα στο κουρείο",
+      intro: "Το κουρείο με το φως της ημέρας και το βράδυ, με τα εξάγωνα φωτιστικά αναμμένα.",
+      alt: "Marino Barbero — κουρείο στην Κάτω Πάφο",
+      captions: {
+        interior: "Ο χώρος με το φως της ημέρας",
+        evening: "Βραδινό φως · αναμμένα εξάγωνα φωτιστικά",
+      },
+    },
     visit: {
       label: "Πού θα μας βρεις",
       heading: "Κάτω Πάφος",
+      // Derived from HOURS, so it cannot drift from the table below it. Deliberately says
+      // nothing about parking or walking distance from the harbour — neither is confirmed.
+      intro: "Ανοιχτά κάθε μέρα: Δευτέρα με Σάββατο από τις 09:30, Κυριακή από τις 11:00.",
       addressLabel: "Διεύθυνση",
       hoursLabel: "Ώρες λειτουργίας",
       contactLabel: "Επικοινωνία",
@@ -385,6 +468,9 @@ const L = {
         },
       ],
     },
+    // The sticky bar and the booking sheet. The bar's armed label ("Fade · 30 λεπτά · €18")
+    // is assembled in main.js from the picked rows, so the unit and the joiners live here
+    // and travel to the browser on data-* attributes rather than being hardcoded in JS.
     booking: {
       title: "Κλείσε ραντεβού",
       intro: "Διάλεξε υπηρεσία και ώρα — online κράτηση μέσω Fresha.",
@@ -392,6 +478,20 @@ const L = {
       via: "Ασφαλής online κράτηση μέσω Fresha",
       close: "Κλείσιμο",
       open: "Κλείσε ραντεβού",
+      serviceLabel: "Υπηρεσία",
+      durLabel: "Χρόνος στην καρέκλα",
+      totalLabel: "Σύνολο",
+      // Shown while nothing is ticked: honest about what the hand-off will and won't carry.
+      anyService: "Οποιαδήποτε υπηρεσία",
+      chooseOnFresha: "Διάλεξε στη Fresha",
+      whatsappAlt: "Στείλε μήνυμα στο WhatsApp",
+      // Second line of the bar: barVia at rest, barSub once a service is held.
+      // Both are kept short — the bar truncates rather than wraps, because
+      // --bar-h is what lifts the consent banner and pads the hero.
+      barVia: "Online κράτηση μέσω Fresha",
+      barSub: "Συνέχεια στο Fresha",
+      // {n} services, when more than one row is ticked.
+      manyServices: "{n} υπηρεσίες",
     },
     consent: {
       text: "Χρησιμοποιούμε cookies για ανώνυμα στατιστικά επισκεψιμότητας (Google Analytics) και για τη μέτρηση της απόδοσης των διαφημίσεών μας (Google Ads). Μπορείς να τα αποδεχτείς ή να τα απορρίψεις.",
@@ -425,17 +525,19 @@ const L = {
         "Men's barber shop in Kato Paphos — fades, classic cuts and beard care, rated 5.0★ by 128 clients. Styling wax and beard oil sold in shop. Book online.",
       ogAlt: "Marino Barbero — barber shop in Kato Paphos",
     },
-    nav: { services: "Services", products: "Products", about: "The shop", gallery: "Gallery", visit: "Visit", book: "Book now" },
+    nav: { services: "Services", about: "The shop", gallery: "Gallery", visit: "Visit", book: "Book now" },
     hero: {
       eyebrow: "Men's Barber Shop · Kato Paphos",
-      titleLines: ["Time", "for the perfect", "cut."],
+      titleLead: "Time for the perfect",
+      titleAccent: "cut.",
       // "barber shop" as two words, matching the query that actually earns here
       // ("barber shop paphos", "barber paphos"), plus the district.
       subtitle:
         "The barber shop in Kato Paphos that takes its time — fades, classic cuts and beard care, rated 5.0★ by 128 clients.",
       book: "Book now",
       whatsapp: "WhatsApp",
-      scroll: "Scroll",
+      pill: "from €18",
+      pillWide: "From €18 · 30 min",
     },
     proof: {
       rating: "5.0",
@@ -444,11 +546,25 @@ const L = {
       quote: "“He takes his time for a flawless cut.”",
       cta: "Read the reviews on Google",
     },
-    marquee: ["Fades", "Classic cuts", "Beard care", "Head massage", "Scalp treatment", "5.0★ · 128 reviews"],
+    fade: {
+      label: "The fade · 30 min · €18",
+      headingLead: "A fade, done in",
+      headingAccent: "thirty minutes",
+      body:
+        "Skin, low, mid or high — tell the barber how high you want the blend to sit. Booked as {svc} on Fresha, same price as the classic cut.",
+      specs: [
+        ["Time", "30 min"],
+        ["Price", "€18"],
+        ["On Fresha", "Fade"],
+      ],
+      caption: "A finished fade",
+    },
     services: {
       label: "Price list",
       heading: "Services & prices",
-      note: "Prices in euros. Payment in-shop (cash / card).",
+      pickHint: "Pick a service. The bar below arms with it and Fresha opens on that one.",
+      totalEmpty: "Nothing ticked yet",
+      note: "Prices in euros. Payment in-shop (cash / card). Walk in if a chair is free — booking just holds the time.",
       groups: [
         { cat: "cut", name: "Haircuts" },
         { cat: "beard", name: "Beard & wash" },
@@ -466,9 +582,11 @@ const L = {
       heading: "What we work with in the chair",
       intro:
         "The styling waxes and beard care we use every day in the shop. Take one home with you after the cut.",
+      introShop: "Available in the shop — there is no basket here and nothing ships.",
       from: "from",
       inShop: "Available in the shop",
       note: "Prices start at €10 per item. Sold in-shop (cash / card). Ask the barber which one suits your hair.",
+      noteCodes: "The Bio Wax codes differ by colour only — nothing about hold is claimed until the manufacturer confirms it.",
       cta: "See the products",
       names: {
         biowax_1: "Bio Wax №1", biowax_2: "Bio Wax №2", biowax_3: "Bio Wax №3", biowax_4: "Bio Wax №4",
@@ -502,10 +620,20 @@ const L = {
       quote: "“He takes his time for a flawless cut.”",
       quoteAuthor: "— from a client's Google review",
     },
-    gallery: { label: "Gallery", heading: "Inside the shop", alt: "Marino Barbero — barber shop in Kato Paphos" },
+    gallery: {
+      label: "Gallery",
+      heading: "Inside the shop",
+      intro: "The room in daylight and in the evening, when the hexagon lamps are lit.",
+      alt: "Marino Barbero — barber shop in Kato Paphos",
+      captions: {
+        interior: "The room in daylight",
+        evening: "Evening light · hexagon lamps lit",
+      },
+    },
     visit: {
       label: "Visit",
       heading: "Kato Paphos",
+      intro: "Open every day: Monday to Saturday from 09:30, Sunday from 11:00.",
       addressLabel: "Address",
       hoursLabel: "Opening hours",
       contactLabel: "Contact",
@@ -636,6 +764,15 @@ const L = {
       via: "Secure online booking via Fresha",
       close: "Close",
       open: "Book now",
+      serviceLabel: "Service",
+      durLabel: "Chair time",
+      totalLabel: "Total",
+      anyService: "Any service",
+      chooseOnFresha: "Choose on Fresha",
+      whatsappAlt: "Message on WhatsApp instead",
+      barVia: "Book online via Fresha",
+      barSub: "Continue on Fresha",
+      manyServices: "{n} services",
     },
     consent: {
       text: "We use cookies for anonymous traffic statistics (Google Analytics) and to measure how our ads perform (Google Ads). You can accept or decline.",
@@ -654,4 +791,4 @@ const L = {
   },
 };
 
-module.exports = { SITE, HOURS, SERVICES, PRODUCTS, L };
+module.exports = { SITE, HOURS, SERVICES, PRODUCTS, GALLERY, L };
