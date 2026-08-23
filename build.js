@@ -301,6 +301,19 @@ function langSwitchHtml(lang, hrefFor) {
 // clip-path over the metal gradient so it costs no request and no image bytes.
 const hex = `<span class="hex" aria-hidden="true"></span>`;
 
+// The wordmark, set as type: everything but the last word in cream, the last word
+// in italic on the metal gradient. Built from SITE.brand instead of being spelled
+// out, so the two places it appears can never drift apart.
+// Stacked on two lines: the name in cream over the last word in italic on the
+// metal gradient. The whitespace between the spans is deliberate — they render as
+// blocks, but it keeps the text content reading as two words for anything that
+// copies or speaks it.
+const wordmark = (() => {
+  const parts = SITE.brand.split(" ");
+  const last = parts.pop();
+  return `<span>${esc(parts.join(" "))}</span> <i>${esc(last)}</i>`;
+})();
+
 function navHtml(lang) {
   const t = L[lang], b = basePath(lang);
   // No burger. The mobile artboard carries the wordmark and the language switch
@@ -316,7 +329,7 @@ function navHtml(lang) {
     .map(([href, label]) => `<a href="${href}">${esc(label)}</a>`)
     .join("");
   return `<header class="nav" aria-label="${esc(SITE.brand)}">
-    <a class="nav__logo" href="${b}" aria-label="${esc(SITE.brandFull)}">${esc(SITE.brand)}</a>
+    <a class="nav__logo" href="${b}" aria-label="${esc(SITE.brandFull)}">${wordmark}</a>
     <div class="nav__right">
       <nav class="nav__links" aria-label="Primary">${links}</nav>
       <div class="lang" role="group" aria-label="Language">${langSwitchHtml(lang, basePath)}</div>
@@ -672,7 +685,7 @@ function footerHtml(lang) {
     <div class="footer__brand">
       ${hex}
       <span>
-        <span class="footer__name">Marino <i class="metal">Barbero</i></span>
+        <span class="footer__name">${wordmark}</span>
         <span class="footer__tag">${esc(t.footer.tagline)}</span>
       </span>
     </div>
@@ -714,16 +727,12 @@ const WA_ICON = `<svg viewBox="0 0 24 24" fill="currentColor" width="22" height=
    page gutter: the gold mark says which section you are in, hovering names it,
    clicking goes there.
 
-   It appears on the same signal as the sticky bar — body.bar-on, i.e. the hero
-   has left — so it never competes with the nav it stands in for, and there is
-   never a moment with two navigations on screen.
+   Always present at desktop widths, which is why the layout gives it a column of
+   its own (body.has-rail) and why the hero's inline links are dropped there: one
+   navigation, visible the whole way down, rather than two that trade places.
 
-   Marks only, with the label revealed on hover: up to a 2400px viewport the
-   space left of the content is just the page gutter (72px at most), which is not
-   enough to park seven labels in. The label carries its own panel so it stays
-   readable over whatever it overlaps while it is open.
-
-   Home page only. The privacy and 404 pages have no sections to point at. */
+   Home page only. The privacy and 404 pages have no sections to point at, and
+   without the has-rail class they keep the symmetric layout. */
 function railHtml(lang) {
   const t = L[lang].nav;
   const items = [
@@ -901,7 +910,7 @@ function renderPage(lang) {
 <head>
   ${headHtml(lang)}
 </head>
-<body>
+<body class="has-rail">
   <main>
     <!-- The nav is emitted inside .hero so it can sit over the photograph without
          a second stacking context; the hero is the only section it overlaps. -->
@@ -1027,7 +1036,7 @@ function notFoundHtml(lang) {
 </head>
 <body class="nf-body no-bar">
   <header class="nav nav--solid" aria-label="${esc(SITE.brand)}">
-    <a class="nav__logo" href="${b}" aria-label="${esc(SITE.brandFull)}">${esc(SITE.brand)}</a>
+    <a class="nav__logo" href="${b}" aria-label="${esc(SITE.brandFull)}">${wordmark}</a>
     <div class="lang" role="group" aria-label="Language">${langSwitchHtml(lang, basePath)}</div>
   </header>
   <main class="notfound">
