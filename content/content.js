@@ -202,7 +202,13 @@ const L = {
         "Ανδρικό κουρείο στην Κάτω Πάφο. Fade, κούρεμα, περιποίηση γενιών — 5.0★ από 128 πελάτες. Κεριά styling & λάδι γενιών στο κατάστημα. Κλείσε ραντεβού online.",
       ogAlt: "Marino Barbero — κουρείο στην Κάτω Πάφο",
     },
-    nav: { services: "Υπηρεσίες", about: "Το κουρείο", gallery: "Gallery", visit: "Πού θα μας βρεις", book: "Κλείσε ραντεβού" },
+    nav: {
+      services: "Υπηρεσίες", about: "Το κουρείο", gallery: "Gallery",
+      visit: "Πού θα μας βρεις", book: "Κλείσε ραντεβού",
+      // Rail-only, kept short enough to sit in the page gutter.
+      fade: "Το fade", products: "Προϊόντα", faq: "Ερωτήσεις",
+      sections: "Ενότητες σελίδας",
+    },
     hero: {
       eyebrow: "Ανδρικό Κουρείο · Κάτω Πάφος",
       // The headline is split so the last word can carry the gold gradient on its own
@@ -525,7 +531,12 @@ const L = {
         "Men's barber shop in Kato Paphos — fades, classic cuts and beard care, rated 5.0★ by 128 clients. Styling wax and beard oil sold in shop. Book online.",
       ogAlt: "Marino Barbero — barber shop in Kato Paphos",
     },
-    nav: { services: "Services", about: "The shop", gallery: "Gallery", visit: "Visit", book: "Book now" },
+    nav: {
+      services: "Services", about: "The shop", gallery: "Gallery",
+      visit: "Visit", book: "Book now",
+      fade: "The fade", products: "Products", faq: "FAQ",
+      sections: "Page sections",
+    },
     hero: {
       eyebrow: "Men's Barber Shop · Kato Paphos",
       titleLead: "Time for the perfect",

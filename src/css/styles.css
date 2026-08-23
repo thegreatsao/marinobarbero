@@ -888,6 +888,85 @@ button.svc .svc__ext { display: none; }
 }
 
 /* =========================================================================
+   Section rail — desktop orientation once the hero's nav has gone.
+   Marks in the page gutter; the label opens on hover with its own panel, because
+   below a 2400px viewport the gutter is only as wide as --pad and the label has
+   to overlap content to be legible at all.
+   ========================================================================= */
+.rail { display: none; }
+
+@media (min-width: 60em) {
+  .rail {
+    display: grid;
+    position: fixed;
+    top: 50%;
+    left: 0;
+    z-index: 24;
+    /* Same trick as the full-bleed panels: sit inside the page gutter without
+       being pinned to the window edge. */
+    padding-left: max(0.875rem, calc((100% - var(--wrap)) / 2 + 0.875rem));
+    transform: translateY(-50%);
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transition: opacity 0.2s var(--ease), visibility 0.2s;
+  }
+  /* Appears on the same signal as the sticky bar: the hero, and its nav, are gone. */
+  body.bar-on .rail { opacity: 1; visibility: visible; pointer-events: auto; }
+
+  .rail a {
+    position: relative;
+    display: flex;
+    align-items: center;
+    /* Only as wide as the mark. The label is taken out of flow below, because a
+       closed label that still occupies layout put a 134px-wide invisible column
+       of links over the left edge of the content, swallowing clicks meant for
+       the page. 30x48 is a comfortable pointer target and well past the 24x24
+       minimum; the 48x48 floor elsewhere is a thumb rule, and this rail is
+       hidden below 960px and never touched. */
+    width: 30px;
+    min-height: 48px;
+  }
+  .rail__mark {
+    flex: none;
+    width: 18px;
+    height: 1px;
+    background: rgba(243, 237, 227, 0.32);
+    transition: width 0.25s var(--ease), background 0.25s var(--ease);
+  }
+  .rail a:hover .rail__mark { width: 30px; background: var(--cream); }
+  .rail a[aria-current] .rail__mark { width: 30px; background: var(--gold); }
+
+  .rail__label {
+    /* Out of flow, and inert: it opens over the content and must never take a
+       click that was aimed at what is underneath it. */
+    position: absolute;
+    left: calc(100% + 0.625rem);
+    pointer-events: none;
+    padding: 0.3125rem 0.625rem;
+    border: 1px solid var(--line);
+    border-radius: 99px;
+    background: rgba(16, 15, 13, 0.92);
+    -webkit-backdrop-filter: blur(6px);
+    backdrop-filter: blur(6px);
+    font: 400 0.78rem var(--sans);
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--cream);
+    white-space: nowrap;
+    opacity: 0;
+    transform: translateX(-6px);
+    transition: opacity 0.25s var(--ease), transform 0.25s var(--ease);
+  }
+  /* Never display:none — the label is the link's accessible name. */
+  .rail a:hover .rail__label, .rail a:focus-visible .rail__label { opacity: 1; transform: none; }
+  .rail a[aria-current] .rail__label { color: var(--gold); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .rail, .rail__mark, .rail__label { transition: none; }
+}
+
+/* =========================================================================
    Sticky booking bar — replaces the pulsing round fab. Enters once when the
    hero leaves the screen, sits in the thumb zone, holds the picked service.
    Never pulses. Never re-animates.

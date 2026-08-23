@@ -155,6 +155,50 @@
     document.body.classList.add("bar-on");
   }
 
+  /* ---------- Section rail: which section am I in ----------
+     One observer over the sections, and the rail marks the last one whose top
+     has passed the reading line. Reading line rather than "is intersecting":
+     two sections are on screen at once for most of a scroll, and an
+     is-intersecting test flickers between them. A line at 45% of the viewport
+     changes the answer exactly once per boundary.
+
+     aria-current is the whole state — the stylesheet reads it, and a screen
+     reader announces it, from the same attribute. */
+  const rail = document.getElementById("rail");
+  if (rail) {
+    const links = [].slice.call(rail.querySelectorAll("a[href^='#']"));
+    const targets = links
+      .map((a) => ({ link: a, el: document.querySelector(a.getAttribute("href")) }))
+      .filter((t) => t.el);
+
+    if (targets.length) {
+      let current = null;
+      const mark = () => {
+        const line = window.innerHeight * 0.45;
+        let found = null;
+        for (let i = 0; i < targets.length; i++) {
+          if (targets[i].el.getBoundingClientRect().top <= line) found = targets[i].link;
+        }
+        if (found === current) return;
+        if (current) current.removeAttribute("aria-current");
+        if (found) found.setAttribute("aria-current", "true");
+        current = found;
+      };
+
+      // rAF-throttled: this runs on every scroll event and must not be the
+      // reason the page misses a frame.
+      let queued = false;
+      const onScroll = () => {
+        if (queued) return;
+        queued = true;
+        requestAnimationFrame(() => { queued = false; mark(); });
+      };
+      window.addEventListener("scroll", onScroll, { passive: true });
+      window.addEventListener("resize", onScroll, { passive: true });
+      mark();
+    }
+  }
+
   /* ---------- Booking sheet ---------- */
   if (sheet) {
     let lastFocus = null;
