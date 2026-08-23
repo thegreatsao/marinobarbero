@@ -11,7 +11,15 @@ const SITE = {
 
   // Booking: Fresha is the self-serve layer, WhatsApp is the human fallback.
   // Public Fresha booking URL — every "Book" CTA + schema ReserveAction uses it.
-  freshaUrl: "https://www.fresha.com/en-GB/a/marino-barbero-pafos-paphos-pafias-afroditis-18a-udlx19uz",
+  // Deep-links straight to Fresha's "Select services" step instead of the venue profile,
+  // so a booking is one screen closer. Verified in a browser: it 302s to
+  // /a/marino-barbero-…/booking?menu=true and Fresha appends its own pId + cartId.
+  //
+  // The share link the owner copied carried "?share=true&pId=3049940". Both are dropped
+  // here: pId is re-added by Fresha on its own, and share=true tags the visit as
+  // share-originated — baking it into every CTA would file all website bookings under one
+  // share campaign and make the Fresha source report useless.
+  freshaUrl: "https://www.fresha.com/book-now/marino-barbero-m3zsn6k3/all-offer",
   phone: "+357 95 900930",
   phoneRaw: "+35795900930",
   whatsapp: "https://wa.me/35795900930",
@@ -21,6 +29,13 @@ const SITE = {
   },
 
   instagram: "https://instagram.com/marino_barbero",
+  // Empty until the real profile exists. build.js drops blanks from schema sameAs, so a
+  // URL pasted here is the whole fix for GEO-006 ("entity is resolvable") — Google reads
+  // sameAs to tie this page to the same business it already knows from Maps and Instagram.
+  // wikidata takes the item URL (https://www.wikidata.org/wiki/Q…) once one is created.
+  facebook: "",
+  tiktok: "",
+  wikidata: "",
   // Google Business Profile (Maps place link) — used for reviews CTA + schema sameAs/hasMap.
   googleProfile: "https://www.google.com/maps/place//data=!4m2!3m1!1s0x14e70759e78c1bf5:0xbe7b292b4dd5166d",
 
@@ -37,9 +52,50 @@ const SITE = {
   rating: { value: "5.0", count: "128" },
   langs: ["el", "en"], // first is the document root (primary = Greek)
 
+  // Which language a search engine should offer someone whose own language matches
+  // neither. Greek is the root of the site, but the demand is not: 1820 of 1852 Search
+  // Console impressions and 92 of 106 GA4 sessions land on English, and Greek-script
+  // queries are 0.9% of impressions (90d to 21.08.2026). So x-default points at /en/
+  // while the root stays Greek for locals.
+  xDefaultLang: "en",
+
+  // First day the site was in Google's index (sitemap submitted 24.07, first impressions
+  // 23.07). Used for schema datePublished — dateModified is the build date.
+  published: "2026-07-24",
+
+  // Retail shelf, not e-commerce. There is no cart and nothing ships — the products
+  // section is a display of what is stocked in the shop.
+  //
+  // priceFrom is deliberately a floor, not a per-SKU price: a 35 ml beard oil and a
+  // wax puck do not cost the same, and a hard price on the page is a promise the
+  // chair has to honour. Every product renders "from €10" until real per-SKU prices
+  // land (add `price` to a PRODUCTS entry and build.js will show it instead).
+  priceFrom: 10,
+  // Fresha product/retail link — empty until the owner supplies it. While empty each
+  // card renders the "available in the shop" line; the moment this is filled in,
+  // build.js renders a real CTA on the section instead. Per-product override: set
+  // `url` on a PRODUCTS entry.
+  freshaShopUrl: "",
+
   // Google Analytics 4 Measurement ID (format: G-XXXXXXXXXX). Leave "" to disable
   // analytics entirely — build.js then emits no gtag snippet and no GA CSP entries.
   ga4: "G-G29D979G0Z",
+
+  // Google Ads conversion ID (format: AW-XXXXXXXXX). Same contract as ga4: leave ""
+  // and build.js emits no Ads config and no Ads CSP origins.
+  //
+  // The booking itself completes on fresha.com, a domain we cannot tag — so the
+  // conversion measured here is the CLICK that hands off to Fresha, not the booking.
+  // main.js fires it as `book_click`; the real click→booking rate is only knowable by
+  // reconciling against the Fresha calendar by hand. Treat the number in Google Ads as
+  // intent, not revenue.
+  //
+  // ⚠️ This must be the tag of the Ads account that actually SPENDS. The shop has more
+  // than one account, and for a week this pointed at a paused one: the site fired
+  // book_click into an account that pays for nothing, while the account running the
+  // campaign reported zero conversions and looked broken. Verify the ID against the
+  // spending account before every campaign launch.
+  ads: "AW-18388273554",
 };
 
 // Opening hours — used by schema + contact block.
@@ -50,18 +106,49 @@ const HOURS = [
 ];
 
 // Flat service list (used for schema Offers). Grouped for display via `cat`.
-// cat: cut | beard | treatment | combo
+// cat: cut | beard | treatment
+//
+// SOURCE OF TRUTH IS FRESHA, NOT THIS FILE. Every price and duration below was read off
+// the live Fresha booking menu on 2026-07-25 and matches it exactly. The card is charged
+// through Fresha, so if the two ever disagree the customer is right and the site is wrong.
+// Re-check here after any change to the Fresha service menu.
+//
+// Previously wrong and now corrected: haircut was listed at €15 while Fresha charges €18,
+// and four durations were guesses that did not match the booking menu.
+//
+// The three combo packages (€22 / €25 / €55) were removed: they were never created in
+// Fresha, so every "book" click from that block landed in a menu where they did not exist.
+// If they get added to Fresha, restore them here with cat "combo" plus a group entry and
+// names in both languages.
 const SERVICES = [
-  { key: "haircut", cat: "cut", price: 15, dur: 30 },
-  { key: "fade", cat: "cut", price: 18, dur: 40, hero: true },
-  { key: "beard", cat: "beard", price: 7, dur: 15 },
-  { key: "wash", cat: "beard", price: 10, dur: 15 },
-  { key: "massage", cat: "treatment", price: 20, dur: 20 },
+  { key: "haircut", cat: "cut", price: 18, dur: 30 },
+  { key: "fade", cat: "cut", price: 18, dur: 30, hero: true },
+  { key: "beard", cat: "beard", price: 7, dur: 10 },
+  { key: "wash", cat: "beard", price: 10, dur: 20 },
+  { key: "massage", cat: "treatment", price: 20, dur: 15 },
   { key: "scalp", cat: "treatment", price: 20, dur: 30 },
   { key: "mask", cat: "treatment", price: 15, dur: 20 },
-  { key: "combo_hb", cat: "combo", price: 22, dur: 45 },
-  { key: "combo_fb", cat: "combo", price: 25, dur: 55 },
-  { key: "combo_full", cat: "combo", price: 55, dur: 90 },
+];
+
+// Retail products stocked in the shop. `img` is the base name of the transparent
+// cut-out in src/img (rendered as product-<img>-440.webp / -880.webp for srcset).
+// `brand` and `size` are printed on the packaging and are safe to publish; anything
+// not on the box or confirmed by the manufacturer is NOT asserted in the copy.
+//
+// Deliberate omission: the Bio Wax №1–№4 codes almost certainly differ in hold or
+// finish, but that mapping could not be verified from the packaging or from the
+// manufacturer, so no card claims one. Copy differentiates by colour and code only.
+// (CONFIRM) with the owner, then extend the per-language `desc` strings below.
+// `schemaName` is the full manufacturer product name as printed on the box. It is not
+// translated (a product name is a proper noun) and is what goes into the Product JSON-LD,
+// while the shorter per-language `names` are what the card shows.
+const PRODUCTS = [
+  { key: "biowax_1", img: "biowax-1", brand: "Bio Wax", line: "The Original", schemaName: "Bio Wax №1 The Original" },
+  { key: "biowax_2", img: "biowax-2", brand: "Bio Wax", line: "The Original", schemaName: "Bio Wax №2 The Original" },
+  { key: "biowax_3", img: "biowax-3", brand: "Bio Wax", line: "The Original", schemaName: "Bio Wax №3 The Original" },
+  { key: "biowax_4", img: "biowax-4", brand: "Bio Wax", line: "The Original", schemaName: "Bio Wax №4 The Original" },
+  { key: "funkyhead", img: "crazybull-funkyhead", brand: "Crazy Bull", line: "Funky Head", size: "100 g", schemaName: "Crazy Bull Funky Head Matte Forming Paste" },
+  { key: "minotaur", img: "crazybull-minotaur", brand: "Crazy Bull", line: "Minotaur", size: "35 ml", schemaName: "Crazy Bull Minotaur Beard Oil" },
 ];
 
 const L = {
@@ -71,17 +158,28 @@ const L = {
     label: "Ελληνικά",
     dir: "ltr",
     meta: {
-      title: "Marino Barbero — Κουρείο στην Πάφο (Κάτω Πάφος) | Fade, Κούρεμα, Γένια",
+      // Head term first, brand second, and the whole thing under 60 characters so the
+      // SERP does not cut it (the previous 70-char version was truncated). "Πάφος" is
+      // dropped in favour of "Κάτω Πάφο" — the district is what people search here, and
+      // it contains the city. Greek demand is thin (0.9% of impressions, Search Console
+      // 90d) but this is the page a Greek-speaking local lands on.
+      title: "Κουρείο στην Κάτω Πάφο — Marino Barbero | Fade, Γένια",
+      // ~155 chars: past that Google truncates in the SERP. The retail mention is here and
+      // NOT in the title on purpose — the title is already at capacity on the query that
+      // actually earns money ("κουρείο Πάφος"), and diluting it to chase wax searches
+      // would trade a booking for a €10 tin.
       description:
-        "Ανδρικό κουρείο στην Κάτω Πάφο. Fade, κλασικό κούρεμα, περιποίηση γενιών και θεραπείες — βαθμολογία 5.0★ από 128 πελάτες. Κλείσε ραντεβού online ή μέσω WhatsApp.",
+        "Ανδρικό κουρείο στην Κάτω Πάφο. Fade, κούρεμα, περιποίηση γενιών — 5.0★ από 128 πελάτες. Κεριά styling & λάδι γενιών στο κατάστημα. Κλείσε ραντεβού online.",
       ogAlt: "Marino Barbero — κουρείο στην Κάτω Πάφο",
     },
-    nav: { services: "Υπηρεσίες", about: "Το κουρείο", gallery: "Gallery", visit: "Πού θα μας βρεις", book: "Κλείσε ραντεβού" },
+    nav: { services: "Υπηρεσίες", products: "Προϊόντα", about: "Το κουρείο", gallery: "Gallery", visit: "Πού θα μας βρεις", book: "Κλείσε ραντεβού" },
     hero: {
       eyebrow: "Ανδρικό Κουρείο · Κάτω Πάφος",
       titleLines: ["Χρόνος", "για το τέλειο", "κούρεμα."],
+      // "κουρείο" verbatim, in the paragraph and not only in the eyebrow above it: the
+      // audit reads the opening paragraph, and it was carrying the synonym "μπαρμπέρικο".
       subtitle:
-        "Το μπαρμπέρικο που αφιερώνει χρόνο σε κάθε κούρεμα. Fade, κλασικά κουρέματα και περιποίηση γενιών — με βαθμολογία 5.0★ από 128 πελάτες.",
+        "Ανδρικό κουρείο στην Κάτω Πάφο που αφιερώνει χρόνο σε κάθε κούρεμα. Fade, κλασικά κουρέματα και περιποίηση γενιών — με βαθμολογία 5.0★ από 128 πελάτες.",
       book: "Κλείσε ραντεβού",
       whatsapp: "WhatsApp",
       scroll: "Κύλισε",
@@ -102,15 +200,46 @@ const L = {
         { cat: "cut", name: "Κουρέματα" },
         { cat: "beard", name: "Γένια & πλύσιμο" },
         { cat: "treatment", name: "Θεραπείες" },
-        { cat: "combo", name: "Πακέτα" },
       ],
       names: {
         haircut: "Κούρεμα", fade: "Fade", beard: "Γένια", wash: "Λούσιμο μαλλιών",
         massage: "Μασάζ κεφαλής", scalp: "Θεραπεία τριχωτού", mask: "Μάσκα προσώπου",
-        combo_hb: "Κούρεμα + Γένια", combo_fb: "Fade + Γένια", combo_full: "Full grooming (Fade + Γένια + Λούσιμο + Μάσκα)",
       },
       min: "λεπτά",
       book: "Κλείσε ραντεβού",
+    },
+    products: {
+      label: "Προϊόντα",
+      heading: "Ό,τι δουλεύουμε στην καρέκλα",
+      intro:
+        "Κεριά styling και περιποίηση γενιών που χρησιμοποιούμε καθημερινά στο κουρείο. Μπορείς να τα πάρεις μαζί σου μετά το κούρεμα.",
+      from: "από",
+      inShop: "Διαθέσιμο στο κουρείο",
+      note: "Οι τιμές ξεκινούν από €10 ανά τεμάχιο. Πώληση στο κατάστημα (μετρητά / κάρτα). Ρώτησε τον μπαρμπέρη ποιο ταιριάζει στα μαλλιά σου.",
+      cta: "Δες τα προϊόντα",
+      names: {
+        biowax_1: "Bio Wax №1", biowax_2: "Bio Wax №2", biowax_3: "Bio Wax №3", biowax_4: "Bio Wax №4",
+        funkyhead: "Funky Head", minotaur: "Minotaur",
+      },
+      // Sub-line under the name: the product type as printed on the box.
+      types: {
+        biowax_1: "Κερί μαλλιών", biowax_2: "Κερί μαλλιών", biowax_3: "Κερί μαλλιών", biowax_4: "Κερί μαλλιών",
+        funkyhead: "Matte forming paste", minotaur: "Beard oil",
+      },
+      // Colour of the tin — the one Bio Wax differentiator we can actually verify.
+      variants: {
+        biowax_1: "Κεχριμπαρένιο", biowax_2: "Ματ μαύρο", biowax_3: "Κόκκινο", biowax_4: "Μπλε",
+      },
+      desc: {
+        biowax_1: "Το κεχριμπαρένιο №1 της σειράς The Original. Δουλεύεται στο στεγνό μαλλί, στο τέλος του κουρέματος.",
+        biowax_2: "Το ματ μαύρο №2 της ίδιας σειράς. Ρώτησέ μας ποιος κωδικός ταιριάζει στα μαλλιά σου.",
+        biowax_3: "Το κόκκινο №3 της σειράς The Original — το ίδιο βαζάκι που βλέπεις στον πάγκο.",
+        biowax_4: "Το μπλε №4 κλείνει τη σειρά των τεσσάρων κωδικών.",
+        funkyhead:
+          "Πάστα με βάση το νερό για υφή και ματ φινίρισμα. Ελαφρύ έως μέτριο κράτημα στο στεγνό μαλλί, πιο μαλακό στο νωπό. Vegan.",
+        minotaur:
+          "Λάδι-serum περιποίησης για τα γένια. Θρέφει και πειθαρχεί χωρίς λιπαρή αίσθηση — με συστατικά φυτικής προέλευσης.",
+      },
     },
     about: {
       label: "Το κουρείο",
@@ -135,7 +264,127 @@ const L = {
         ["Κυριακή", "11:00 – 17:00"],
       ],
     },
-    footer: { tagline: "Ανδρικό Κουρείο · Κάτω Πάφος, Κύπρος", rights: "Με την επιφύλαξη παντός δικαιώματος.", reviews: "Κριτικές Google" },
+    footer: {
+      tagline: "Ανδρικό Κουρείο · Κάτω Πάφος, Κύπρος",
+      rights: "Με την επιφύλαξη παντός δικαιώματος.",
+      reviews: "Κριτικές Google",
+      privacy: "Πολιτική απορρήτου",
+      cookies: "Ρυθμίσεις cookies",
+      updated: "Ενημερώθηκε",
+    },
+    // "home" names the link, "label" names the landmark — a screen reader announcing
+    // "navigation, Αρχική" says nothing about what the navigation is.
+    breadcrumb: { home: "Αρχική", label: "Διαδρομή πλοήγησης" },
+    faq: {
+      label: "Συχνές ερωτήσεις",
+      heading: "Ό,τι ρωτούν πριν κλείσουν ραντεβού",
+      items: [
+        {
+          q: "Χρειάζεται ραντεβού ή μπορώ να περάσω;",
+          a: "Το online ραντεβού εξασφαλίζει την ώρα σου και παίρνει λίγα δευτερόλεπτα. Αν περάσεις χωρίς ραντεβού, θα σε εξυπηρετήσουμε μόλις ελευθερωθεί καρέκλα.",
+        },
+        {
+          q: "Είστε ανοιχτά Κυριακή;",
+          a: "Ναι. Δευτέρα με Σάββατο 09:30–20:00 και Κυριακή 11:00–17:00.",
+        },
+        {
+          q: "Πόσο διαρκεί ένα κούρεμα ή ένα fade;",
+          a: "Το κούρεμα και το fade κρατούν περίπου 30 λεπτά, η περιποίηση γενιών 10. Ο χρόνος στην καρέκλα δεν κόβεται για να βγει το πρόγραμμα.",
+        },
+        {
+          q: "Σε ποιες γλώσσες μιλάτε;",
+          a: "Ελληνικά και αγγλικά.",
+        },
+        {
+          q: "Πόσο κοστίζει και πώς πληρώνω;",
+          a: "Κούρεμα και fade €18, γένια €7 — ο πλήρης τιμοκατάλογος είναι πιο πάνω. Δεχόμαστε μετρητά και κάρτα στο κατάστημα.",
+        },
+        {
+          q: "Πουλάτε τα προϊόντα που δουλεύετε;",
+          a: "Ναι, στο κατάστημα. Δεν έχουμε online κατάστημα και δεν στέλνουμε παραγγελίες — ρώτησέ μας στην καρέκλα ποιος κωδικός ταιριάζει στα μαλλιά σου.",
+        },
+      ],
+    },
+    privacy: {
+      metaTitle: "Πολιτική απορρήτου — Marino Barbero",
+      // 120–165 characters: shorter than that and Google pads the snippet with text it
+      // picks itself.
+      metaDescription:
+        "Τι δεδομένα συλλέγει ο ιστότοπος του κουρείου Marino Barbero στην Κάτω Πάφο, ποιος τα λαμβάνει, σε τι βασίζεται και πώς αποσύρεις τη συγκατάθεσή σου.",
+      title: "Πολιτική απορρήτου",
+      updatedLabel: "Τελευταία ενημέρωση",
+      // Σύντομες απαντήσεις πάνω από το κείμενο: μια νομική σελίδα που ξεκινά με οκτώ
+      // παραγράφους δεν απαντά σε τίποτα, και ούτε ο επισκέπτης ούτε η μηχανή βρίσκουν
+      // την απάντηση (GO-144 / GEO-004).
+      glanceLabel: "Με δύο λόγια",
+      glance: [
+        ["Τι συλλέγει ο ιστότοπος από μόνος του;", "Τίποτα. Δεν υπάρχουν φόρμες, λογαριασμοί ούτε πληρωμές."],
+        ["Υπάρχουν cookies πριν απαντήσω στο μήνυμα;", "Όχι. Κανένα cookie μέτρησης δεν φορτώνεται πριν πατήσεις «Αποδοχή»."],
+        ["Ποιος λαμβάνει δεδομένα αν δεχτώ;", "Google Analytics 4 και Google Ads, για επισκεψιμότητα και απόδοση διαφημίσεων."],
+        ["Πού πηγαίνουν τα στοιχεία του ραντεβού;", "Στη Fresha, που είναι ανεξάρτητος υπεύθυνος επεξεργασίας με τη δική της πολιτική."],
+        ["Πώς αποσύρω τη συγκατάθεση;", "Από τον σύνδεσμο «Ρυθμίσεις cookies» στο υποσέλιδο, οποτεδήποτε."],
+      ],
+      intro:
+        "Ο ιστότοπος δεν έχει φόρμες, λογαριασμούς ή πληρωμές. Δεν ζητάμε τίποτα από εσένα εδώ: το ραντεβού κλείνεται στη Fresha και η συνομιλία γίνεται στο WhatsApp. Παρακάτω είναι, με ονόματα και σκοπούς, ό,τι περνά από αυτή τη σελίδα.",
+      sections: [
+        {
+          h: "Υπεύθυνος επεξεργασίας",
+          p: [
+            "Marino Barbero — The Barber Shop, Πάφιας Αφροδίτης 18Α, Κάτω Πάφος, 8041 Πάφος, Κύπρος.",
+            "Επικοινωνία για οτιδήποτε σχετικό με τα δεδομένα σου: τηλέφωνο +357 95 900930, ή το ίδιο νούμερο στο WhatsApp.",
+          ],
+        },
+        {
+          h: "Τι συλλέγεται χωρίς τη συγκατάθεσή σου",
+          p: [
+            "Μόνο τα τεχνικά αρχεία του διακομιστή που κρατά ο πάροχος φιλοξενίας (Netlify): διεύθυνση IP, τύπος περιηγητή και ποια σελίδα ζητήθηκε. Χρησιμεύουν στην ασφάλεια και στη διάγνωση σφαλμάτων, δεν συνδέονται με όνομα και δεν χρησιμοποιούνται για διαφήμιση.",
+            "Πριν πατήσεις «Αποδοχή», δεν φορτώνεται κανένα cookie μέτρησης. Η επιλογή σου αποθηκεύεται τοπικά στον περιηγητή σου (localStorage, κλειδί «mb-consent») και δεν στέλνεται πουθενά.",
+          ],
+        },
+        {
+          h: "Τι συλλέγεται αν δώσεις συγκατάθεση",
+          p: [
+            "Google Analytics 4: ψευδώνυμα αναγνωριστικά, ποιες ενότητες είδες, αν πάτησες «Κλείσε ραντεβού», WhatsApp ή το τηλέφωνο, κατά προσέγγιση περιοχή από την IP, τύπος συσκευής. Τα δεδομένα διατηρούνται 14 μήνες.",
+            "Google Ads: μέτρηση αν μια επίσκεψη ήρθε από διαφήμιση και αν κατέληξε σε κλικ στο ραντεβού. Χωρίς αυτό δεν ξέρουμε ποια διαφήμιση αξίζει τα χρήματά της.",
+            "Και τα δύο τρέχουν σε λειτουργία συγκατάθεσης (consent mode): όσο η απάντηση είναι «Απόρριψη», τα σχετικά cookies μένουν κλειστά.",
+          ],
+        },
+        {
+          h: "Πού σε στέλνει αυτή η σελίδα",
+          p: [
+            "Fresha — το online ραντεβού. Ό,τι δίνεις εκεί (όνομα, τηλέφωνο, email) πηγαίνει στη Fresha ως ανεξάρτητο υπεύθυνο επεξεργασίας, με τη δική της πολιτική.",
+            "WhatsApp (Meta) — αν επιλέξεις να γράψεις. Ισχύουν οι όροι του WhatsApp.",
+            "Instagram (Meta) και το προφίλ μας στο Google — απλοί εξωτερικοί σύνδεσμοι.",
+            "Ο ενσωματωμένος χάρτης Google Maps: μόλις φορτώσει, η Google λαμβάνει τη διεύθυνση IP σου. Είναι απαραίτητος για να βρεις το κατάστημα.",
+          ],
+        },
+        {
+          h: "Νομικές βάσεις",
+          p: [
+            "Συγκατάθεση για τη μέτρηση και τη διαφήμιση (άρθρο 6 παρ. 1 στοιχ. α΄ GDPR). Έννομο συμφέρον για τα αρχεία ασφαλείας του διακομιστή (στοιχ. στ΄). Εκτέλεση σύμβασης όταν κλείνεις ραντεβού (στοιχ. β΄) — αυτό γίνεται στη Fresha.",
+          ],
+        },
+        {
+          h: "Τα δικαιώματά σου",
+          p: [
+            "Πρόσβαση, διόρθωση, διαγραφή, περιορισμός, εναντίωση και φορητότητα των δεδομένων σου. Μπορείς επίσης να αποσύρεις τη συγκατάθεσή σου οποτεδήποτε — από τον σύνδεσμο «Ρυθμίσεις cookies» στο υποσέλιδο, που εμφανίζει ξανά το μήνυμα επιλογής.",
+            "Αν θεωρείς ότι κάτι γίνεται λάθος, μπορείς να προσφύγεις στο Γραφείο Επιτρόπου Προστασίας Δεδομένων Προσωπικού Χαρακτήρα Κύπρου.",
+          ],
+        },
+        {
+          h: "Παιδιά",
+          p: [
+            "Κουρεύουμε και παιδιά, αλλά ο ιστότοπος δεν ζητά και δεν αποθηκεύει στοιχεία ανηλίκων. Το ραντεβού για παιδί το κλείνει ο γονέας ή ο κηδεμόνας.",
+          ],
+        },
+        {
+          h: "Αλλαγές",
+          p: [
+            "Αν αλλάξει κάτι στα εργαλεία μέτρησης ή στους συνεργάτες, αλλάζει και αυτή η σελίδα, και η ημερομηνία πιο πάνω δείχνει πότε.",
+          ],
+        },
+      ],
+    },
     booking: {
       title: "Κλείσε ραντεβού",
       intro: "Διάλεξε υπηρεσία και ώρα — online κράτηση μέσω Fresha.",
@@ -145,7 +394,7 @@ const L = {
       open: "Κλείσε ραντεβού",
     },
     consent: {
-      text: "Χρησιμοποιούμε cookies για ανώνυμα στατιστικά επισκεψιμότητας (Google Analytics). Μπορείς να τα αποδεχτείς ή να τα απορρίψεις.",
+      text: "Χρησιμοποιούμε cookies για ανώνυμα στατιστικά επισκεψιμότητας (Google Analytics) και για τη μέτρηση της απόδοσης των διαφημίσεών μας (Google Ads). Μπορείς να τα αποδεχτείς ή να τα απορρίψεις.",
       accept: "Αποδοχή",
       decline: "Απόρριψη",
       aria: "Ειδοποίηση για cookies",
@@ -166,17 +415,24 @@ const L = {
     label: "English",
     dir: "ltr",
     meta: {
-      title: "Marino Barbero — Barber Shop in Kato Paphos | Fades, Cuts & Beard Care",
+      // This is the page that earns: 1820 of 1852 impressions and 35 of 37 clicks
+      // (Search Console, 90d). Every query behind them is English — "barber paphos",
+      // "barber shop paphos", "barbers near me" — so the title leads with the category
+      // and the district, and the brand follows. Same phrasing as the top-performing
+      // Google Ads headline, which also drags Quality Score along with it.
+      title: "Barber Shop in Kato Paphos — Marino Barbero | Fades",
       description:
-        "Men's barber shop in Kato Paphos. Fades, classic cuts, beard care and treatments — rated 5.0★ by 128 clients. Book online or via WhatsApp.",
+        "Men's barber shop in Kato Paphos — fades, classic cuts and beard care, rated 5.0★ by 128 clients. Styling wax and beard oil sold in shop. Book online.",
       ogAlt: "Marino Barbero — barber shop in Kato Paphos",
     },
-    nav: { services: "Services", about: "The shop", gallery: "Gallery", visit: "Visit", book: "Book now" },
+    nav: { services: "Services", products: "Products", about: "The shop", gallery: "Gallery", visit: "Visit", book: "Book now" },
     hero: {
       eyebrow: "Men's Barber Shop · Kato Paphos",
       titleLines: ["Time", "for the perfect", "cut."],
+      // "barber shop" as two words, matching the query that actually earns here
+      // ("barber shop paphos", "barber paphos"), plus the district.
       subtitle:
-        "The Paphos barbershop that takes its time — fades, classic cuts and beard care, rated 5.0★ by 128 clients.",
+        "The barber shop in Kato Paphos that takes its time — fades, classic cuts and beard care, rated 5.0★ by 128 clients.",
       book: "Book now",
       whatsapp: "WhatsApp",
       scroll: "Scroll",
@@ -197,15 +453,44 @@ const L = {
         { cat: "cut", name: "Haircuts" },
         { cat: "beard", name: "Beard & wash" },
         { cat: "treatment", name: "Treatments" },
-        { cat: "combo", name: "Packages" },
       ],
       names: {
         haircut: "Haircut", fade: "Fade", beard: "Beard", wash: "Hair wash",
         massage: "Head massage", scalp: "Scalp treatment", mask: "Face mask",
-        combo_hb: "Haircut + Beard", combo_fb: "Fade + Beard", combo_full: "Full grooming (Fade + Beard + Wash + Mask)",
       },
       min: "min",
       book: "Book now",
+    },
+    products: {
+      label: "Products",
+      heading: "What we work with in the chair",
+      intro:
+        "The styling waxes and beard care we use every day in the shop. Take one home with you after the cut.",
+      from: "from",
+      inShop: "Available in the shop",
+      note: "Prices start at €10 per item. Sold in-shop (cash / card). Ask the barber which one suits your hair.",
+      cta: "See the products",
+      names: {
+        biowax_1: "Bio Wax №1", biowax_2: "Bio Wax №2", biowax_3: "Bio Wax №3", biowax_4: "Bio Wax №4",
+        funkyhead: "Funky Head", minotaur: "Minotaur",
+      },
+      types: {
+        biowax_1: "Hair wax", biowax_2: "Hair wax", biowax_3: "Hair wax", biowax_4: "Hair wax",
+        funkyhead: "Matte forming paste", minotaur: "Beard oil",
+      },
+      variants: {
+        biowax_1: "Amber", biowax_2: "Matte black", biowax_3: "Red", biowax_4: "Blue",
+      },
+      desc: {
+        biowax_1: "The amber №1 from The Original line. Worked into dry hair at the end of the cut.",
+        biowax_2: "The matte black №2 from the same line. Ask us which code suits your hair.",
+        biowax_3: "The red №3 from The Original line — the same tin you see on the counter.",
+        biowax_4: "The blue №4 closes out the set of four codes.",
+        funkyhead:
+          "Water-based paste for texture and a matte finish. Light to medium hold on dry hair, softer on towel-dried. Vegan.",
+        minotaur:
+          "A conditioning oil serum for the beard. Nourishes and tames without a greasy residue — plant-origin ingredients.",
+      },
     },
     about: {
       label: "The shop",
@@ -230,7 +515,120 @@ const L = {
         ["Sunday", "11:00 – 17:00"],
       ],
     },
-    footer: { tagline: "Men's Barber Shop · Kato Paphos, Cyprus", rights: "All rights reserved.", reviews: "Google reviews" },
+    footer: {
+      tagline: "Men's Barber Shop · Kato Paphos, Cyprus",
+      rights: "All rights reserved.",
+      reviews: "Google reviews",
+      privacy: "Privacy policy",
+      cookies: "Cookie settings",
+      updated: "Updated",
+    },
+    breadcrumb: { home: "Home", label: "Breadcrumb" },
+    faq: {
+      label: "FAQ",
+      heading: "What people ask before booking",
+      items: [
+        {
+          q: "Do I need an appointment or can I walk in?",
+          a: "Booking online takes a few seconds and holds your slot. If you walk in, we will take you as soon as a chair is free.",
+        },
+        {
+          q: "Are you open on Sunday?",
+          a: "Yes. Monday to Saturday 09:30–20:00, Sunday 11:00–17:00.",
+        },
+        {
+          q: "How long does a haircut or a fade take?",
+          a: "About 30 minutes for a cut or a fade, 10 for beard care. Time in the chair is not cut short to keep the schedule moving.",
+        },
+        {
+          q: "What languages do you speak?",
+          a: "Greek and English.",
+        },
+        {
+          q: "What does it cost and how do I pay?",
+          a: "Haircut and fade €18, beard €7 — the full price list is above. Cash and card accepted in the shop.",
+        },
+        {
+          q: "Do you sell the products you use?",
+          a: "Yes, over the counter. There is no online store and nothing ships — ask in the chair which code suits your hair.",
+        },
+      ],
+    },
+    privacy: {
+      metaTitle: "Privacy policy — Marino Barbero",
+      metaDescription:
+        "What the Marino Barbero barber shop website collects in Kato Paphos, who receives it, the legal basis for each purpose, and how to withdraw your consent.",
+      title: "Privacy policy",
+      updatedLabel: "Last updated",
+      glanceLabel: "In short",
+      glance: [
+        ["What does the site collect on its own?", "Nothing. There are no forms, no accounts and no payments."],
+        ["Are there cookies before I answer the banner?", "No. No measurement cookie loads before you press Accept."],
+        ["Who receives data if I accept?", "Google Analytics 4 and Google Ads, for traffic and ad performance."],
+        ["Where do my booking details go?", "To Fresha, an independent controller with its own policy."],
+        ["How do I withdraw consent?", "Through the Cookie settings link in the footer, at any time."],
+      ],
+      intro:
+        "This site has no forms, no accounts and no payments. We ask you for nothing here: bookings happen on Fresha and conversations happen on WhatsApp. Below is everything that passes through this page, named and explained.",
+      sections: [
+        {
+          h: "Who is responsible",
+          p: [
+            "Marino Barbero — The Barber Shop, Pafias Afroditis 18A, Kato Paphos, 8041 Paphos, Cyprus.",
+            "For anything about your data: +357 95 900930, by phone or on WhatsApp at the same number.",
+          ],
+        },
+        {
+          h: "What is collected without your consent",
+          p: [
+            "Only the server logs kept by the host (Netlify): IP address, browser type and which page was requested. They exist for security and debugging, are not tied to a name, and are never used for advertising.",
+            "Before you press \u201CAccept\u201D, no measurement cookie is loaded at all. Your choice is stored locally in your own browser (localStorage, key \u201Cmb-consent\u201D) and is not sent anywhere.",
+          ],
+        },
+        {
+          h: "What is collected if you consent",
+          p: [
+            "Google Analytics 4: pseudonymous identifiers, which sections you viewed, whether you tapped Book, WhatsApp or the phone number, approximate area from your IP, device type. Retained for 14 months.",
+            "Google Ads: whether a visit came from an ad and whether it ended in a booking click. Without it we cannot tell which ad is worth its money.",
+            "Both run in consent mode: while the answer is \u201CDecline\u201D, the related cookies stay off.",
+          ],
+        },
+        {
+          h: "Where this page hands you on",
+          p: [
+            "Fresha — online booking. Whatever you enter there (name, phone, email) goes to Fresha as an independent controller, under its own policy.",
+            "WhatsApp (Meta) — only if you choose to write. WhatsApp's own terms apply.",
+            "Instagram (Meta) and our Google profile — plain external links.",
+            "The embedded Google Maps frame: once it loads, Google receives your IP address. It is there so you can find the shop.",
+          ],
+        },
+        {
+          h: "Legal bases",
+          p: [
+            "Consent for measurement and advertising (GDPR Art. 6(1)(a)). Legitimate interest for server security logs (Art. 6(1)(f)). Performance of a contract when you book (Art. 6(1)(b)) — which happens on Fresha.",
+          ],
+        },
+        {
+          h: "Your rights",
+          p: [
+            "Access, rectification, erasure, restriction, objection and portability. You can also withdraw consent at any time through the \u201CCookie settings\u201D link in the footer, which brings the choice banner back.",
+            "If you believe something is being handled wrongly, you can complain to the Office of the Commissioner for Personal Data Protection in Cyprus.",
+          ],
+        },
+        {
+          h: "Children",
+          p: [
+            "We cut children's hair, but the website neither asks for nor stores any details about minors. A booking for a child is made by the parent or guardian.",
+          ],
+        },
+        {
+          h: "Changes",
+          p: [
+            "If the measurement tools or the partners change, this page changes with them, and the date above says when.",
+          ],
+        },
+      ],
+    },
     booking: {
       title: "Book now",
       intro: "Pick a service and time — book online via Fresha.",
@@ -240,7 +638,7 @@ const L = {
       open: "Book now",
     },
     consent: {
-      text: "We use cookies for anonymous traffic statistics (Google Analytics). You can accept or decline.",
+      text: "We use cookies for anonymous traffic statistics (Google Analytics) and to measure how our ads perform (Google Ads). You can accept or decline.",
       accept: "Accept",
       decline: "Decline",
       aria: "Cookie notice",
@@ -256,4 +654,4 @@ const L = {
   },
 };
 
-module.exports = { SITE, HOURS, SERVICES, L };
+module.exports = { SITE, HOURS, SERVICES, PRODUCTS, L };

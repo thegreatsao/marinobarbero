@@ -91,27 +91,45 @@
   }
 
   /* ---------- Marquee (seamless loop) ---------- */
+  // Below 860px the CSS turns the strip into a wrapped static row — a scrolling ticker is
+  // overflow:hidden by definition, and that is what the mobile audit reads as clipped text
+  // (MB-108). So the loop only runs at the widths where the strip actually scrolls, and it
+  // starts and stops on the media query rather than being decided once at load: a window
+  // dragged across 861px (or a tablet rotated) has to end up in the right state, and a
+  // one-off check at load time gets that wrong in both directions.
+  const wide = window.matchMedia("(min-width: 861px)");
   document.querySelectorAll(".marquee").forEach((m) => {
     const track = m.querySelector(".marquee__track");
-    if (!track) return;
-    track.innerHTML += track.innerHTML;
-    if (reduce) return;
+    if (!track || reduce) return;
+    // Both copies of the strip come from build.js, not from innerHTML here: duplicating at
+    // runtime made the rendered DOM differ from the served HTML (MB-105). The half-width
+    // maths is unchanged — there are still exactly two copies.
     let x = 0;
+    let raf = null;
+    let paused = false;
     const speed = 0.4;
     let half = track.scrollWidth / 2;
-    let paused = false;
-    m.addEventListener("mouseenter", () => (paused = true));
-    m.addEventListener("mouseleave", () => (paused = false));
     const tick = () => {
       if (!paused) {
         x -= speed;
         if (-x >= half) x = 0;
         track.style.transform = `translate3d(${x}px,0,0)`;
       }
-      requestAnimationFrame(tick);
+      raf = requestAnimationFrame(tick);
     };
-    window.addEventListener("resize", () => (half = track.scrollWidth / 2));
-    requestAnimationFrame(tick);
+    const start = () => { if (raf === null) { half = track.scrollWidth / 2; raf = requestAnimationFrame(tick); } };
+    const stop = () => {
+      if (raf === null) return;
+      cancelAnimationFrame(raf);
+      raf = null;
+      x = 0;
+      track.style.transform = "";  // hand the strip back to the stylesheet
+    };
+    m.addEventListener("mouseenter", () => (paused = true));
+    m.addEventListener("mouseleave", () => (paused = false));
+    window.addEventListener("resize", () => { if (raf !== null) half = track.scrollWidth / 2; });
+    wide.addEventListener("change", (e) => (e.matches ? start() : stop()));
+    if (wide.matches) start();
   });
 
   /* ---------- Magnetic buttons (desktop) ---------- */
@@ -194,19 +212,31 @@
   }
 
   /* ---------- Cookie consent (Google Consent Mode v2) ---------- */
-  // gtag defaults analytics_storage to "denied" (set inline in <head>). Show the banner
+  // gtag defaults every category to "denied" (set inline in <head>). Show the banner
   // only when the visitor hasn't chosen yet; "Accept" flips consent to granted, "Decline"
   // keeps it denied. Choice is persisted so the banner stays dismissed on return visits.
+  //
+  // All four categories are granted together, matching what the banner text asks for
+  // (analytics AND ad performance, in both languages). Granting analytics_storage alone
+  // would leave Google Ads unable to tie a book_click back to the ad click that paid for
+  // it — and the conversion-modelling that is supposed to cover that gap needs far more
+  // ad clicks per week than this budget will ever produce.
   const consent = document.getElementById("consent");
   if (consent) {
     const KEY = "mb-consent";
+    const GRANTS = {
+      analytics_storage: "granted",
+      ad_storage: "granted",
+      ad_user_data: "granted",
+      ad_personalization: "granted",
+    };
     let stored = null;
     try { stored = localStorage.getItem(KEY); } catch (e) {}
     if (stored !== "granted" && stored !== "denied") consent.hidden = false;
     const decide = (val) => {
       try { localStorage.setItem(KEY, val); } catch (e) {}
       if (val === "granted" && typeof window.gtag === "function") {
-        window.gtag("consent", "update", { analytics_storage: "granted" });
+        window.gtag("consent", "update", GRANTS);
       }
       consent.hidden = true;
     };
@@ -214,7 +244,56 @@
     const decline = consent.querySelector("[data-consent-decline]");
     if (accept) accept.addEventListener("click", () => decide("granted"));
     if (decline) decline.addEventListener("click", () => decide("denied"));
+
+    // "Cookie settings" in the footer: forget the stored answer and ask again. The privacy
+    // policy states consent can be withdrawn at any time, and this is that "any time" —
+    // without it the banner never comes back once a choice is made.
+    //
+    // Consent is pushed back to denied immediately rather than on the next answer: the
+    // moment someone reaches for this control, the previous grant should stop applying.
+    document.querySelectorAll("[data-consent-reset]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        try { localStorage.removeItem(KEY); } catch (e) {}
+        if (typeof window.gtag === "function") {
+          window.gtag("consent", "update", {
+            analytics_storage: "denied", ad_storage: "denied",
+            ad_user_data: "denied", ad_personalization: "denied",
+          });
+        }
+        consent.hidden = false;
+        consent.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "nearest" });
+      });
+    });
   }
+
+  /* ---------- Outbound conversion events ---------- */
+  // The booking finishes on fresha.com and the shop's phone — neither is a domain we can
+  // tag. So the last thing measurable on our side is the hand-off click, and that is what
+  // both GA4 and Google Ads count as a conversion here.
+  //
+  // Delegated on document rather than bound per link: the Fresha CTA appears in the nav,
+  // hero, services, visit, footer, the slide-in booking panel and the 404 page, and the
+  // panel's markup is regenerated by build.js. One listener survives all of that.
+  //
+  // Event names only, no send_to — the Google Ads conversion actions are created by
+  // importing these GA4 events, so no conversion label has to be hardcoded (and no code
+  // change is needed when the Ads account is finally set up). The AW- config emitted in
+  // <head> is still what enables the conversion linker and remarketing.
+  const CONVERSIONS = [
+    { match: (h) => h.indexOf("fresha.com") > -1, event: "book_click" },
+    { match: (h) => h.indexOf("wa.me") > -1, event: "whatsapp_click" },
+    { match: (h) => h.indexOf("tel:") === 0, event: "call_click" },
+  ];
+  document.addEventListener("click", (e) => {
+    if (typeof window.gtag !== "function") return;
+    const a = e.target.closest && e.target.closest("a[href]");
+    if (!a) return;
+    const href = a.getAttribute("href") || "";
+    const hit = CONVERSIONS.find((c) => c.match(href));
+    // Every one of these links is target="_blank" or a tel: hand-off, so the current
+    // document is never torn down — the hit has time to leave without transport_type.
+    if (hit) window.gtag("event", hit.event, { link_url: a.href });
+  });
 
   /* ---------- Footer year ---------- */
   const y = document.querySelector("[data-year]");

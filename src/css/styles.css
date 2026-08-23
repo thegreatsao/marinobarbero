@@ -50,10 +50,13 @@ h3 { font-size: 1.25rem; }
 
 .wrap { width: 100%; max-width: var(--wrap); margin-inline: auto; padding-inline: var(--pad); }
 
+/* 0.78rem = 12.5px. Everything in this file that sets an uppercase micro-label used to
+   sit between 10.6 and 11.5px, which Google counts as unreadable (CN-034). The tracking
+   is pulled in slightly to keep the same line length at the larger size. */
 .eyebrow {
   font-family: var(--sans);
-  font-size: 0.72rem;
-  letter-spacing: 0.24em;
+  font-size: 0.78rem;
+  letter-spacing: 0.22em;
   text-transform: uppercase;
   color: var(--gold);
   margin-bottom: 1rem;
@@ -83,7 +86,7 @@ h3 { font-size: 1.25rem; }
 .btn:hover .arr { transform: translateX(4px); }
 .btn--ghost { background: transparent; color: var(--cream); border-color: rgba(243, 237, 227, 0.35); }
 .btn--ghost:hover { background: rgba(243, 237, 227, 0.08); border-color: var(--cream); }
-.btn--nav { padding: 0.7em 1.2em; font-size: 0.82rem; }
+.btn--nav { padding: 0.7em 1.2em; font-size: 0.82rem; white-space: nowrap; min-height: 48px; }
 
 /* ---------- nav ---------- */
 .nav {
@@ -99,19 +102,25 @@ h3 { font-size: 1.25rem; }
   padding-block: 0.7rem;
   border-bottom-color: var(--line);
 }
+/* Every rule below that reaches for 48px is doing the same thing: Google's tap-target
+   floor is 48x48 CSS px and 22 controls on this page were under it (MB-103, MB-101).
+   The text keeps its size — only the box around it grows. */
 .nav__logo {
   font-family: var(--serif);
   font-size: 1.15rem;
   letter-spacing: 0.16em;
   color: var(--cream);
-  display: flex; gap: 0.4em;
+  display: flex; gap: 0.4em; align-items: center; min-height: 48px;
 }
 .nav__logo em { color: var(--gold); font-style: normal; }
 .nav__menu { display: flex; align-items: center; gap: clamp(1rem, 2.5vw, 2.2rem); }
 .nav__links { display: flex; gap: clamp(1rem, 2vw, 1.9rem); }
 .nav__links a {
   font-size: 0.82rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--stone);
-  position: relative; padding-bottom: 3px; transition: color 0.3s var(--ease);
+  /* A nav item must never break across two lines: the Greek labels are long ("ΠΟΥ ΘΑ ΜΑΣ
+     ΒΡΕΙΣ") and wrapping one pushes the language switch off the right edge. */
+  white-space: nowrap;
+  position: relative; padding-top: 5px; padding-bottom: 3px; transition: color 0.3s var(--ease);
 }
 .nav__links a::after {
   content: ""; position: absolute; left: 0; bottom: 0; width: 0; height: 1px; background: var(--gold); transition: width 0.35s var(--ease);
@@ -119,7 +128,7 @@ h3 { font-size: 1.25rem; }
 .nav__links a:hover { color: var(--cream); }
 .nav__links a:hover::after { width: 100%; }
 .lang { display: flex; gap: 0.5rem; font-size: 0.78rem; letter-spacing: 0.06em; }
-.lang a { color: var(--stone-dim); padding: 0.2em 0.15em; }
+.lang a { color: var(--stone-dim); padding: 0.35em 0.45em; }
 .lang a.active, .lang a:hover { color: var(--gold); }
 .nav__burger { display: none; }
 
@@ -135,7 +144,11 @@ h3 { font-size: 1.25rem; }
 }
 .hero__inner { position: relative; z-index: 2; padding-bottom: clamp(4rem, 12vh, 8rem); padding-top: 8rem; }
 .hero .eyebrow { color: var(--gold-soft); }
-.hero__title { font-size: clamp(2.9rem, 9vw, 6.6rem); font-weight: 500; max-width: 14ch; }
+/* The 14ch cap belongs to the display lines, not to the h1: the eyebrow is inside the
+   heading now and a 14ch box would break "Ανδρικό Κουρείο · Κάτω Πάφος" across two lines. */
+.hero__title { font-size: clamp(2.9rem, 9vw, 6.6rem); font-weight: 500; max-width: none; }
+.hero__lines { display: block; max-width: 14ch; }
+.hero__eyebrow { display: block; font-family: var(--sans); letter-spacing: 0.22em; }
 .hero__title .line { display: block; overflow: hidden; }
 .hero__title .line span { display: block; }
 .hero__title .line:last-child span { color: var(--gold); font-style: italic; }
@@ -144,7 +157,7 @@ h3 { font-size: 1.25rem; }
 .scroll-cue {
   position: absolute; z-index: 2; bottom: 1.6rem; right: var(--pad);
   display: flex; align-items: center; gap: 0.7rem; color: var(--stone);
-  font-size: 0.7rem; letter-spacing: 0.2em; text-transform: uppercase;
+  font-size: 0.78rem; letter-spacing: 0.18em; text-transform: uppercase;
 }
 .scroll-cue .bar { width: 40px; height: 1px; background: var(--stone-dim); position: relative; overflow: hidden; }
 .scroll-cue .bar::after { content: ""; position: absolute; inset: 0; width: 40%; background: var(--gold); animation: cue 2.4s var(--ease) infinite; }
@@ -157,11 +170,11 @@ h3 { font-size: 1.25rem; }
   padding-block: clamp(1.8rem, 4vw, 2.6rem);
 }
 .proof__score { display: flex; flex-direction: column; gap: 0.2rem; }
-.proof__num { font-family: var(--serif); font-size: 2.6rem; line-height: 1; color: var(--cream); }
+.proof__num { font-family: var(--serif); font-size: 2.6rem; line-height: 1.1; color: var(--cream); }
 .proof__stars { color: var(--gold); letter-spacing: 0.15em; font-size: 1rem; }
 .proof__meta { font-size: 0.78rem; letter-spacing: 0.08em; color: var(--stone); text-transform: uppercase; }
 .proof__quote { font-family: var(--serif); font-style: italic; font-size: clamp(1.1rem, 2.4vw, 1.6rem); color: var(--cream-2); }
-.proof__cta { font-size: 0.82rem; letter-spacing: 0.06em; color: var(--gold); white-space: nowrap; border-bottom: 1px solid transparent; transition: border-color 0.3s; }
+.proof__cta { display: inline-flex; align-items: center; min-height: 48px; font-size: 0.82rem; letter-spacing: 0.06em; color: var(--gold); white-space: nowrap; border-bottom: 1px solid transparent; transition: border-color 0.3s; }
 .proof__cta:hover { border-bottom-color: var(--gold); }
 
 /* ---------- marquee ---------- */
@@ -172,7 +185,11 @@ h3 { font-size: 1.25rem; }
 
 /* ---------- services ---------- */
 .services { padding-block: clamp(4rem, 10vw, 7rem); }
-.svc-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: clamp(2rem, 5vw, 3.5rem) clamp(2.5rem, 6vw, 5rem); }
+/* One column per service group. There are three groups (cuts / beard / treatments), so
+   three columns fill the row exactly and nothing is left hanging in a half-empty second
+   column. If a fourth group is ever restored (the combo packages), change this to 2 or 4
+   — an odd count in a 2-column grid leaves a visible void. */
+.svc-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: clamp(2rem, 5vw, 3.5rem) clamp(1.8rem, 4vw, 3.2rem); align-items: start; }
 .svc-group__title { color: var(--gold); font-size: 0.82rem; letter-spacing: 0.2em; text-transform: uppercase; font-family: var(--sans); margin-bottom: 1.1rem; padding-bottom: 0.7rem; border-bottom: 1px solid var(--line); }
 .svc-list { list-style: none; }
 .svc {
@@ -186,6 +203,72 @@ h3 { font-size: 1.25rem; }
 .svc--hero .svc__name { color: #fff; }
 .svc-note { margin-top: 2rem; font-size: 0.85rem; color: var(--stone-dim); }
 .svc-cta { margin-top: 2.4rem; }
+
+/* ---------- products (retail shelf) ---------- */
+/* Sits between Services and About on the same --ink background, so it reads as a
+   continuation of the price list rather than a separate storefront. The cut-outs are
+   transparent WebP on a common baseline: the light pool and the contact shadow are CSS,
+   not baked into the image, so one asset works on any card colour. */
+.products { padding-block: clamp(3.5rem, 9vw, 6.5rem); }
+.prod-intro { color: var(--stone); margin-top: 1.2rem; max-width: 50ch; }
+.prod-grid {
+  display: grid; grid-template-columns: repeat(3, 1fr);
+  gap: clamp(1rem, 2.2vw, 1.6rem);
+}
+.prod {
+  display: flex; flex-direction: column;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  overflow: hidden;
+  transition: border-color 0.4s var(--ease), transform 0.4s var(--ease), background 0.4s var(--ease);
+}
+/* Only the <a> form is interactive; the <article> form (no shop URL yet) stays inert. */
+a.prod:hover { border-color: var(--gold); transform: translateY(-4px); }
+a.prod:focus-visible { outline: 2px solid var(--gold); outline-offset: 3px; }
+
+.prod__shot {
+  position: relative;
+  aspect-ratio: 1 / 1;
+  background: var(--ink-2);
+  border-bottom: 1px solid var(--line);
+}
+/* Warm pool of light behind the product — replaces the light-background composite the
+   packshots use, which would read as a white box on a dark page. */
+.prod__shot::before {
+  content: ""; position: absolute; inset: 0;
+  background: radial-gradient(58% 46% at 50% 42%, rgba(201, 162, 75, 0.16), transparent 72%);
+}
+.prod__shot img {
+  position: relative;
+  width: 100%; height: 100%;
+  object-fit: contain;
+  padding: 8% 10% 4%;
+  filter: drop-shadow(0 16px 22px rgba(0, 0, 0, 0.55));
+  transition: transform 0.7s var(--ease);
+}
+a.prod:hover .prod__shot img { transform: translateY(-6px) scale(1.03); }
+
+.prod__body { display: flex; flex-direction: column; gap: 0.4rem; padding: 1.2rem 1.25rem 1.35rem; flex: 1; }
+.prod__brand { font-size: 0.78rem; letter-spacing: 0.18em; text-transform: uppercase; color: var(--gold); }
+.prod__name { font-family: var(--serif); font-size: 1.35rem; color: var(--cream); line-height: 1.15; }
+.prod__meta { font-size: 0.78rem; letter-spacing: 0.06em; color: var(--stone-dim); }
+.prod__desc { font-size: 0.9rem; line-height: 1.55; color: var(--stone); margin-top: 0.35rem; }
+.prod__price {
+  margin-top: auto; padding-top: 1rem;
+  font-family: var(--serif); font-size: 1.3rem; color: var(--gold);
+  display: flex; align-items: baseline; gap: 0.45em;
+}
+.prod__from { font-family: var(--sans); font-size: 0.78rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--stone-dim); }
+
+.prod-note { margin-top: 2rem; font-size: 0.85rem; color: var(--stone-dim); max-width: 62ch; }
+.prod-cta { margin-top: 2rem; }
+/* Shown while there is no Fresha product link: states plainly that the shelf is physical. */
+.prod-shopline {
+  margin-top: 1.1rem; display: inline-flex; align-items: center; gap: 0.6rem;
+  font-size: 0.78rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--stone);
+}
+.prod-shopline__dot { width: 6px; height: 6px; border-radius: 50%; background: var(--gold); flex: none; }
 
 /* ---------- about ---------- */
 .about { padding-block: clamp(3rem, 8vw, 6rem); background: var(--ink-2); border-block: 1px solid var(--line); }
@@ -216,7 +299,8 @@ h3 { font-size: 1.25rem; }
 .visit__info { display: grid; grid-template-columns: 1fr 1fr; gap: 1.8rem 2rem; margin-top: 2rem; }
 .visit__block h3 { font-family: var(--sans); font-size: 0.75rem; letter-spacing: 0.2em; text-transform: uppercase; color: var(--gold); margin-bottom: 0.7rem; }
 .visit__block p { color: var(--stone); }
-.visit__block a { display: block; color: var(--cream); margin-top: 0.35rem; transition: color 0.3s; }
+/* flex, not inline-flex: these stack one per line and must stay that way. */
+.visit__block a { display: flex; align-items: center; min-height: 48px; color: var(--cream); transition: color 0.3s; }
 .visit__block a:hover { color: var(--gold); }
 .visit__block--wide { grid-column: 1 / -1; }
 .hours-table { width: 100%; max-width: 340px; border-collapse: collapse; }
@@ -232,8 +316,15 @@ h3 { font-size: 1.25rem; }
 .footer__brand { font-family: var(--serif); font-size: 1.5rem; letter-spacing: 0.14em; color: var(--cream); display: flex; flex-direction: column; gap: 0.4rem; }
 .footer__brand span { font-family: var(--sans); font-size: 0.78rem; letter-spacing: 0.08em; color: var(--stone-dim); text-transform: none; }
 .footer__links { display: flex; flex-wrap: wrap; gap: 1.4rem; }
-.footer__links a { font-size: 0.85rem; letter-spacing: 0.04em; color: var(--stone); transition: color 0.3s; }
+.footer__links a { display: inline-flex; align-items: center; min-height: 48px; font-size: 0.85rem; letter-spacing: 0.04em; color: var(--stone); transition: color 0.3s; }
 .footer__links a:hover { color: var(--gold); }
+.footer__reset {
+  display: inline-flex; align-items: center; min-height: 48px;
+  background: none; border: 0; padding: 0; cursor: pointer;
+  font-family: var(--sans); font-size: 0.85rem; letter-spacing: 0.04em;
+  color: var(--stone); transition: color 0.3s;
+}
+.footer__reset:hover { color: var(--gold); }
 .footer__bottom { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 0.8rem; margin-top: 2.5rem; padding-top: 1.5rem; border-top: 1px solid var(--line); font-size: 0.78rem; color: var(--stone-dim); }
 
 /* ---------- Floating booking icon + slide-in panel ---------- */
@@ -277,7 +368,7 @@ body.bk-on .bk-panel { transform: none; }
 .bk-panel__head { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; }
 .bk-title { color: var(--cream); font-size: clamp(1.8rem, 5vw, 2.4rem); }
 .bk-close {
-  flex: none; width: 40px; height: 40px; border-radius: 50%;
+  flex: none; width: 48px; height: 48px; border-radius: 50%;
   background: transparent; color: var(--stone); border: 1px solid var(--line);
   font-size: 1.1rem; cursor: pointer; transition: color 0.3s, border-color 0.3s, transform 0.3s var(--ease);
 }
@@ -290,7 +381,7 @@ body.bk-on .bk-panel { transform: none; }
 .bk-svc__price { color: var(--gold); font-family: var(--serif); }
 .bk-foot { margin-top: auto; display: flex; flex-direction: column; gap: 0.7rem; align-items: flex-start; position: sticky; bottom: 0; padding-top: 1rem; background: linear-gradient(to top, var(--ink-2) 70%, transparent); }
 .bk-go { width: 100%; justify-content: center; }
-.bk-via { font-size: 0.72rem; letter-spacing: 0.06em; color: var(--stone-dim); text-transform: uppercase; align-self: center; }
+.bk-via { font-size: 0.78rem; letter-spacing: 0.06em; color: var(--stone-dim); text-transform: uppercase; align-self: center; }
 
 /* ---------- custom cursor (desktop) ---------- */
 .cursor, .cursor-dot { position: fixed; top: 0; left: 0; z-index: 100; pointer-events: none; border-radius: 50%; mix-blend-mode: difference; }
@@ -312,16 +403,123 @@ html.js .img-reveal.in img { opacity: 1; transform: scale(1); }
   html.js .reveal, html.js .img-reveal img, html.js [data-stagger] > * { opacity: 1 !important; transform: none !important; }
 }
 
+/* ---------- FAQ ---------- */
+.faq { padding-block: clamp(4rem, 10vw, 7rem); border-top: 1px solid var(--line); }
+.faq__list { max-width: 72ch; }
+.faq__item { border-bottom: 1px solid var(--line); }
+.faq__item summary {
+  display: flex; align-items: center; justify-content: space-between; gap: 1rem;
+  min-height: 48px; padding-block: 1.1rem; cursor: pointer;
+  font-family: var(--serif); font-size: 1.15rem; color: var(--cream);
+  list-style: none; transition: color 0.3s;
+}
+.faq__item summary::-webkit-details-marker { display: none; }
+/* The marker is drawn in CSS so it can rotate: a plain "+" that becomes a "×" reads as
+   open/closed without depending on the browser's own triangle. */
+.faq__item summary::after {
+  content: "+"; flex: none; font-family: var(--sans); font-size: 1.4rem; line-height: 1;
+  color: var(--gold); transition: transform 0.35s var(--ease);
+}
+.faq__item[open] summary::after { transform: rotate(45deg); }
+.faq__item summary:hover { color: var(--gold); }
+.faq__item p { padding-bottom: 1.3rem; color: var(--stone); max-width: 62ch; }
+
+/* ---------- breadcrumbs (secondary pages only) ---------- */
+.breadcrumbs ol { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; list-style: none; }
+.breadcrumbs li { font-size: 0.78rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--stone-dim); }
+.breadcrumbs li + li::before { content: "/"; margin-right: 0.5rem; color: var(--line); }
+.breadcrumbs a { display: inline-flex; align-items: center; min-height: 48px; color: var(--stone); transition: color 0.3s; }
+.breadcrumbs a:hover { color: var(--gold); }
+.breadcrumbs [aria-current="page"] { color: var(--gold); }
+
+/* ---------- legal pages (privacy) ---------- */
+.nav--solid { background: var(--ink-2); border-bottom-color: var(--line); }
+.legal { padding-top: calc(72px + clamp(2rem, 6vw, 4rem)); padding-bottom: clamp(4rem, 10vw, 7rem); }
+.legal__inner { max-width: 74ch; }
+.legal h1 { font-size: clamp(2.2rem, 6vw, 3.4rem); margin-top: 0.6rem; }
+.legal__updated { margin-top: 0.9rem; font-size: 0.85rem; letter-spacing: 0.04em; color: var(--stone-dim); }
+.legal__intro { margin-top: 1.6rem; font-size: 1.08rem; color: var(--cream-2); }
+.glance { margin-top: 2.2rem; padding: 1.4rem 1.5rem; background: var(--ink-2); border: 1px solid var(--line); border-radius: var(--r); }
+.glance h2 {
+  font-family: var(--sans); font-size: 0.85rem; letter-spacing: 0.18em; text-transform: uppercase;
+  color: var(--gold); margin-bottom: 1rem;
+}
+.glance dt { color: var(--cream); font-size: 0.98rem; }
+.glance dd { color: var(--stone); margin-bottom: 0.9rem; }
+.glance dd:last-child { margin-bottom: 0; }
+
+.legal__sec { margin-top: 2.6rem; }
+.legal__sec h2 {
+  font-family: var(--sans); font-size: 0.85rem; letter-spacing: 0.18em; text-transform: uppercase;
+  color: var(--gold); margin-bottom: 0.9rem;
+}
+.legal__sec p { color: var(--stone); margin-top: 0.8rem; }
+.legal__sec p:first-of-type { margin-top: 0; }
+
 /* ---------- responsive ---------- */
+/* Intermediate band: five nav items (Services / Products / The shop / Gallery / Visit) in
+   Greek need roughly 1150px at full size. Below that, tighten the type and the gaps rather
+   than dropping straight to the burger, so laptops keep the horizontal nav. */
+@media (max-width: 1023px) and (min-width: 861px) {
+  /* Three service columns get too narrow for "Θεραπεία τριχωτού" + duration + price on
+     one line here, so drop to two and let the third group wrap under. */
+  .svc-grid { grid-template-columns: repeat(2, 1fr); }
+}
+
+@media (max-width: 1220px) and (min-width: 861px) {
+  .nav__logo { font-size: 1rem; letter-spacing: 0.1em; }
+  .nav__menu { gap: 1rem; }
+  .nav__links { gap: 0.95rem; }
+  .nav__links a { font-size: 0.75rem; letter-spacing: 0.04em; }
+  .btn--nav { padding: 0.65em 1em; font-size: 0.75rem; }
+  .lang { gap: 0.35rem; font-size: 0.75rem; }
+}
+/* Last 100px before the burger takes over at 860px: the Greek nav still just fits, but
+   only with the logo and the link gaps pulled in further. */
+@media (max-width: 960px) and (min-width: 861px) {
+  .nav__logo { font-size: 0.88rem; letter-spacing: 0.06em; }
+  /* The 12px floor costs horizontal room, so it is bought back from the gaps and the CTA
+     padding instead of from the type: at 865px (worst case, Greek labels) the logo and the
+     menu still clear each other, measured. */
+  .nav__menu { gap: 0.7rem; }
+  .nav__links { gap: 0.5rem; }
+  /* 0.75rem = 12px exactly, the readability floor (CN-034). Measured at 861, 900 and
+     960px: the Greek labels still clear the logo with ~50px to spare once the tracking
+     comes down, so this range no longer trades legibility for fit. */
+  .nav__links a { font-size: 0.75rem; letter-spacing: 0.02em; }
+  .btn--nav { padding: 0.6em 0.7em; font-size: 0.75rem; }
+}
+
 @media (max-width: 860px) {
   body { font-size: 16px; }
+  /* The ticker becomes a static wrapped strip here. A scrolling marquee is overflow:hidden
+     by definition, and at phone width that is exactly what the audit reads as text cut off
+     (MB-108) — so on phones the same words simply wrap and stay whole. The clone is
+     dropped so nothing reads twice, and main.js skips the animation at this width. */
+  /* The desktop ticker runs edge to edge because it scrolls; a wrapped block has to sit
+     inside the same gutter as every other section, or the last word touches the bezel. */
+  .marquee { overflow: visible; padding-inline: var(--pad); }
+  .marquee__track { flex-wrap: wrap; justify-content: center; gap: 0.5rem 1.2rem; transform: none !important; }
+  .marquee__track [data-marquee-clone] { display: none; }
+  /* Wrapped, the interpunct separators end up orphaned at the end of every line, so the
+     gap does the separating instead — and the type comes down a step, because four lines
+     of decoration is a lot of thumb travel on a phone. */
+  .marquee__track .dot { display: none; }
+  .marquee__track span { font-size: 1.05rem; }
+
+  .legal { padding-top: calc(64px + 1.6rem); }
   .nav__menu { position: fixed; inset: 0; flex-direction: column; justify-content: center; gap: 2rem;
     background: rgba(16, 15, 13, 0.97); backdrop-filter: blur(10px);
     transform: translateX(100%); transition: transform 0.5s var(--ease); }
   body.menu-open .nav__menu { transform: none; }
   .nav__links { flex-direction: column; text-align: center; gap: 1.4rem; }
-  .nav__links a { font-size: 1.1rem; }
-  .nav__burger { display: flex; flex-direction: column; gap: 5px; z-index: 70; background: none; border: 0; cursor: pointer; padding: 6px; }
+  /* EL / EN measured 20x26 and 22x26 — inside the off-canvas menu, where the only input
+     is a thumb. Square them off at 48. */
+  .lang a { min-width: 48px; min-height: 48px; display: inline-flex; align-items: center; justify-content: center; padding: 0; }
+  .nav__links a { font-size: 1.1rem; min-height: 48px; display: inline-flex; align-items: center; justify-content: center; }
+  /* The burger measured 38x28 and sits in the far corner from a thumb (MB-101): the box
+     goes to 48x48 while the three bars stay 26px wide. */
+  .nav__burger { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px; z-index: 70; background: none; border: 0; cursor: pointer; min-width: 48px; min-height: 48px; padding: 6px; }
   .nav__burger span { width: 26px; height: 2px; background: var(--cream); transition: transform 0.35s var(--ease), opacity 0.35s; }
   body.menu-open .nav__burger span:nth-child(1) { transform: translateY(7px) rotate(45deg); }
   body.menu-open .nav__burger span:nth-child(2) { opacity: 0; }
@@ -329,6 +527,7 @@ html.js .img-reveal.in img { opacity: 1; transform: scale(1); }
 
   .proof__grid { grid-template-columns: 1fr; text-align: center; gap: 1.2rem; justify-items: center; }
   .svc-grid { grid-template-columns: 1fr; }
+  .prod-grid { grid-template-columns: repeat(2, 1fr); }
   .about__grid { grid-template-columns: 1fr; }
   .about__media { max-width: 420px; }
   .gal__grid { grid-template-columns: 1fr; }
@@ -340,6 +539,24 @@ html.js .img-reveal.in img { opacity: 1; transform: scale(1); }
   /* stack the hero CTAs full-width so both stay comfortably tappable on narrow screens */
   .hero__actions { flex-direction: column; align-items: stretch; }
   .hero__actions .btn { justify-content: center; }
+}
+
+/* Two product columns get too cramped for the description text on a phone, so the card
+   turns into a row: shot on the left, copy on the right. The shot column is deliberately
+   wide (46%) — the cut-outs share one canvas scaled to the products' real relative sizes,
+   so a narrow item like the 35 ml box only occupies a third of its canvas width and goes
+   unreadably small in a slimmer column. */
+@media (max-width: 560px) {
+  .prod-grid { grid-template-columns: 1fr; }
+  .prod { flex-direction: row; align-items: stretch; }
+  .prod__shot {
+    flex: 0 0 46%; aspect-ratio: auto; min-height: 8.5rem;
+    border-bottom: 0; border-right: 1px solid var(--line);
+  }
+  .prod__shot img { padding: 7% 4%; }
+  .prod__body { padding: 1rem 1.1rem 1.1rem; }
+  .prod__name { font-size: 1.2rem; }
+  .prod__desc { font-size: 0.86rem; }
 }
 
 /* ---------- cookie consent banner (Consent Mode v2) ---------- */
@@ -360,7 +577,7 @@ html.js .img-reveal.in img { opacity: 1; transform: scale(1); }
 .consent[hidden] { display: none; }
 .consent__text { font-family: var(--sans); font-size: 0.85rem; line-height: 1.55; color: var(--stone); }
 .consent__actions { display: flex; gap: 0.6rem; justify-content: flex-end; }
-.consent__btn { padding: 0.62em 1.1em; font-size: 0.8rem; }
+.consent__btn { padding: 0.62em 1.1em; font-size: 0.8rem; min-height: 48px; }
 @keyframes consent-in { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
 @media (prefers-reduced-motion: reduce) { .consent { animation: none; } }
 @media (max-width: 560px) {
