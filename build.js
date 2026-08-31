@@ -28,6 +28,13 @@ const hash8 = (buf) => crypto.createHash("sha1").update(buf).digest("hex").slice
 const IMG = {};
 const img = (name) => IMG[name] || `/assets/img/${name}`;
 
+// Same contract for the video loops, which live in src/video and are emitted to
+// /assets/video. They were previously resolved through img(), which pointed every
+// <source> at /assets/img/<name>.webm — a path the build never wrote. Nothing broke
+// only because no GALLERY entry had ever set `video`.
+const VID = {};
+const vid = (name) => VID[name] || `/assets/video/${name}`;
+
 // Self-hosted display face. The two files are content-hashed like every other
 // asset, which means the @font-face src in styles.css cannot be written by hand:
 // the stylesheet ships a placeholder per file and build() substitutes the hashed
@@ -47,7 +54,7 @@ const font = (file) => FONT_URL[file] || `/assets/fonts/${file}`;
 // Whether any Work cell carries a video loop. Drives the one CSP directive that
 // only exists when there is media to play, so the header stays minimal until the
 // two loops in the shot list are actually shot.
-const hasVideo = GALLERY.some((g) => g.video);
+const hasVideo = GALLERY.some((g) => g.video) || PRODUCTS.some((p) => p.video);
 
 // CSP source hash for an inline <script> body (must match the bytes between the tags
 // exactly). Used to keep script-src strict — no 'unsafe-inline' — while still allowing
@@ -513,42 +520,62 @@ function productsHtml(lang) {
       ? `<span class="prod__from">${esc(t.from)}</span>${price}`
       : price;
     const href = productUrl(p);
-    // The whole card becomes a link only once a real product URL exists; until then it is
-    // a plain <article> so nothing looks clickable that isn't.
-    const tag = href ? "a" : "article";
-    const attrs = href ? ` href="${href}" target="_blank" rel="noopener"` : "";
-    // The cut-out sits on a pool of gold light rather than a filled panel — the
-    // one place in the design where gold is unambiguously a light source.
-    // sizes reflects the real layout: two-up on the phone, a 116px thumbnail
-    // beside the copy from 960px.
-    return `<${tag} class="prod"${attrs}>
-      <div class="prod__shot">
-        <img src="${img(`product-${p.img}-440.webp`)}"
+    // A loop where footage exists, the transparent cut-out everywhere else. Poster-first
+    // with preload="none": no media byte is requested until main.js calls play(), which it
+    // only does for a slide in view and never on save-data / 2g / reduced motion.
+    const media = p.video
+      ? `<video data-loop muted playsinline loop preload="none" poster="${img(p.poster)}"
+                width="540" height="960" aria-label="${esc(alt)}">
+           <source src="${vid(p.video + ".webm")}" type="video/webm">
+           <source src="${vid(p.video + ".mp4")}" type="video/mp4">
+         </video>`
+      : `<img src="${img(`product-${p.img}-440.webp`)}"
              srcset="${img(`product-${p.img}-440.webp`)} 440w, ${img(`product-${p.img}-880.webp`)} 880w"
-             sizes="(min-width: 60em) 116px, 44vw"
-             alt="${esc(alt)}" width="880" height="880" loading="lazy" decoding="async">
-      </div>
-      <div class="prod__body">
-        <p class="prod__brand">${esc(p.brand)} · ${esc(p.line)}</p>
-        <h3 class="prod__name">${esc(name)}</h3>
-        <p class="prod__meta">${esc(meta)}</p>
-        <p class="prod__desc">${esc(t.desc[p.key])}</p>
-        <p class="prod__price num">${priceHtml}</p>
-      </div>
-    </${tag}>`;
+             sizes="(min-width: 60em) 320px, 76vw"
+             alt="${esc(alt)}" width="880" height="880" loading="lazy" decoding="async">`;
+    // The card is an <article> even when a URL exists: the CTA below is the link now, and
+    // an <a> inside an <a> is not markup a browser can parse. The accessible name repeats
+    // the product so six "Order" links are six distinct destinations to a screen reader.
+    const cta = href
+      ? `<a class="prod__cta" href="${href}" target="_blank" rel="noopener"
+            aria-label="${esc(t.order)} — ${esc(p.brand)} ${esc(name)}">${esc(t.order)} <span class="arr" aria-hidden="true">→</span></a>`
+      : `<p class="prod__stock"><span class="prod-shopline__dot" aria-hidden="true"></span>${esc(t.inShop)}</p>`;
+    return `<li class="prod-slide">
+      <article class="prod${p.video ? " prod--loop" : ""}">
+        <div class="prod__shot">${media}</div>
+        <div class="prod__body">
+          <p class="prod__brand">${esc(p.brand)} · ${esc(p.line)}</p>
+          <h3 class="prod__name">${esc(name)}</h3>
+          <p class="prod__meta">${esc(meta)}</p>
+          <p class="prod__desc">${esc(t.desc[p.key])}</p>
+          <p class="prod__price num">${priceHtml}</p>
+          ${cta}
+        </div>
+      </article>
+    </li>`;
   }).join("");
-  // Fallback line while there is no shop URL: says plainly where the products are sold,
-  // so nobody waits for a checkout that doesn't exist.
+  // Section-level CTA only once there is a store to send people to; otherwise the honest
+  // line about where the products actually are.
   const foot = shopUrl
     ? `<div class="prod-cta reveal"><a href="${shopUrl}" class="btn" target="_blank" rel="noopener">${esc(t.cta)} <span class="arr" aria-hidden="true">→</span></a></div>`
     : `<p class="prod-shopline"><span class="prod-shopline__dot" aria-hidden="true"></span>${esc(t.inShop)}</p>`;
+  // A scroll-snap rail, not a scripted carousel: it swipes on a phone, scrolls with a
+  // trackpad, takes arrow keys once focused, and needs no JavaScript to work at all.
+  // main.js adds the arrows and the dots on top of it; with the file blocked the rail is
+  // still a complete, scrollable shelf. The i18n for those controls rides on data-*
+  // attributes so nothing a translator owns is hardcoded in the behaviour layer.
   return `<section class="products" id="products">
     <div class="wrap">
       <div class="sec-head reveal">
         <div><p class="eyebrow">${esc(t.label)}</p><h2>${esc(t.heading)}</h2></div>
         <p>${esc(t.intro)} <span class="prod-intro__shop">${esc(t.introShop)}</span></p>
       </div>
-      <div class="prod-grid">${cards}</div>
+    </div>
+    <div class="prod-railwrap" id="prod-rail"
+         data-prev="${esc(t.prev)}" data-next="${esc(t.next)}">
+      <ul class="prod-rail" tabindex="0" role="group" aria-label="${esc(t.rail)}">${cards}</ul>
+    </div>
+    <div class="wrap">
       <p class="sec-note">${esc(t.note)} ${esc(t.noteCodes)}</p>
       ${foot}
     </div>
@@ -604,8 +631,8 @@ function galleryHtml(lang) {
     const cap = t.captions[g.cap];
     const media = g.video
       ? `<video data-loop muted playsinline loop preload="none" poster="${img(g.img)}" width="${g.w}" height="${g.h}" aria-label="${esc(cap)}">
-           <source src="${img(g.video + ".webm")}" type="video/webm">
-           <source src="${img(g.video + ".mp4")}" type="video/mp4">
+           <source src="${vid(g.video + ".webm")}" type="video/webm">
+           <source src="${vid(g.video + ".mp4")}" type="video/mp4">
          </video>`
       : `<img src="${img(g.img)}" alt="${esc(cap)}" width="${g.w}" height="${g.h}" loading="lazy" decoding="async">`;
     return `<figure class="${cls}">${media}<figcaption class="gal__cap">${esc(cap)}</figcaption></figure>`;
@@ -1379,6 +1406,21 @@ function build() {
     for (const f of fs.readdirSync(srcImg)) {
       const s = path.join(srcImg, f);
       if (fs.statSync(s).isFile()) emitImg(f, fs.readFileSync(s));
+    }
+  }
+  // Video loops, fingerprinted on the same immutable /assets cache as the images.
+  const vidOut = path.join(DIST, "assets", "video");
+  const srcVid = path.join(SRC, "video");
+  if (fs.existsSync(srcVid)) {
+    mkdir(vidOut);
+    for (const f of fs.readdirSync(srcVid)) {
+      const sv = path.join(srcVid, f);
+      if (!fs.statSync(sv).isFile()) continue;
+      const buf = fs.readFileSync(sv);
+      const ext = path.extname(f);
+      const hashed = `${f.slice(0, -ext.length)}.${hash8(buf)}${ext}`;
+      write(path.join(vidOut, hashed), buf);
+      VID[f] = `/assets/video/${hashed}`;
     }
   }
   // Generated favicon, hashed like any other asset.

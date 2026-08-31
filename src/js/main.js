@@ -41,8 +41,12 @@
      a saved-data or 2g connection or under reduced motion. `preload="none"` in
      the markup means nothing is requested until play() is called, so the guard
      below is the whole opt-out: no play(), no bytes. */
-  const loops = document.querySelectorAll("video[data-loop]");
-  if (loops.length) {
+  //
+  // observeLoops() is exposed to the rail below, which clones slides for the infinite
+  // scroll: a cloned <video> is a new element the original observer never saw, and an
+  // unobserved clone sits frozen on its poster next to a moving original.
+  let observeLoops = () => {};
+  {
     const conn = navigator.connection || {};
     const cheap = conn.saveData === true || conn.effectiveType === "2g" || conn.effectiveType === "slow-2g";
     if (!reduce && !cheap) {
@@ -56,7 +60,122 @@
         },
         { threshold: 0.3 }
       );
-      loops.forEach((v) => vio.observe(v));
+      observeLoops = (root) => (root || document).querySelectorAll("video[data-loop]").forEach((v) => vio.observe(v));
+      observeLoops(document);
+    }
+  }
+
+  /* ---------- Product rail ----------
+     The rail is a scroll-snap flex row and works with this file blocked: it swipes, it
+     scrolls, and it takes arrow keys once focused. Everything below is on top of that.
+
+     Infinite by cloning, not by animating: the six real slides are flanked by a copy of
+     the whole set on each side, and whenever the scroll position drifts into a copy it
+     is snapped back by exactly one set width. The jump is invisible because the pixels
+     under it are identical, and because it happens with snapping switched off — Safari
+     and Chrome will otherwise re-snap mid-jump and land a card off-centre.
+
+     The copies are decoration: aria-hidden, and every focusable thing inside them is
+     taken out of the tab order, so a keyboard user meets each product exactly once and
+     a screen reader is not read the same shelf three times.
+
+     Cloning is skipped under reduced motion — an endless rail is motion the user asked
+     us not to produce — and the rail then keeps its honest ends. */
+  const prodRail = document.getElementById("prod-rail");
+  const prodTrack = prodRail && prodRail.querySelector(".prod-rail");
+  if (prodTrack && prodTrack.querySelector(".prod-slide")) {
+    const fine = window.matchMedia("(hover: hover) and (pointer: fine)").matches;
+    const originals = [...prodTrack.children];
+    const period = () => {
+      const gap = parseFloat(getComputedStyle(prodTrack).columnGap) || 0;
+      return originals.reduce((sum, el) => sum + el.getBoundingClientRect().width + gap, 0);
+    };
+    const step = () => {
+      const gap = parseFloat(getComputedStyle(prodTrack).columnGap) || 0;
+      return originals[0].getBoundingClientRect().width + gap;
+    };
+
+    let looping = false;
+    if (!reduce) {
+      const copy = (where) => {
+        const frag = document.createDocumentFragment();
+        originals.forEach((el) => {
+          const c = el.cloneNode(true);
+          c.setAttribute("aria-hidden", "true");
+          c.classList.add("prod-slide--clone");
+          c.querySelectorAll("a, button, video").forEach((n) => n.setAttribute("tabindex", "-1"));
+          frag.appendChild(c);
+        });
+        where === "before" ? prodTrack.prepend(frag) : prodTrack.appendChild(frag);
+      };
+      copy("before");
+      copy("after");
+      observeLoops(prodTrack);
+      looping = true;
+
+      // Park on the real set. Snapping is off for the jump and restored after, otherwise
+      // the browser animates toward a snap point and the seam becomes visible.
+      const jumpTo = (x) => {
+        const snap = prodTrack.style.scrollSnapType;
+        prodTrack.style.scrollSnapType = "none";
+        prodTrack.scrollLeft = x;
+        prodTrack.style.scrollSnapType = snap || "";
+      };
+      requestAnimationFrame(() => jumpTo(period()));
+
+      let ticking = false;
+      prodTrack.addEventListener(
+        "scroll",
+        () => {
+          if (ticking) return;
+          ticking = true;
+          requestAnimationFrame(() => {
+            const p = period();
+            // Half a set of slack on each side: far enough that the seam is never on
+            // screen, close enough that a fast flick cannot outrun it.
+            if (prodTrack.scrollLeft < p * 0.5) jumpTo(prodTrack.scrollLeft + p);
+            else if (prodTrack.scrollLeft > p * 1.5) jumpTo(prodTrack.scrollLeft - p);
+            ticking = false;
+          });
+        },
+        { passive: true }
+      );
+      window.addEventListener("resize", () => jumpTo(period()));
+    }
+
+    // Arrows exist only where a pointer can use them — a touch device swipes, and two
+    // more tap targets there buy nothing.
+    if (fine) {
+      const arrow = (dir, label) => {
+        const b = document.createElement("button");
+        b.type = "button";
+        b.className = "prod-nav prod-nav--" + dir;
+        b.setAttribute("aria-label", label);
+        b.innerHTML =
+          '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="' +
+          (dir === "prev" ? "M15 5l-7 7 7 7" : "M9 5l7 7-7 7") +
+          '" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+        prodRail.appendChild(b);
+        return b;
+      };
+      const prev = arrow("prev", prodRail.dataset.prev || "Previous");
+      const next = arrow("next", prodRail.dataset.next || "Next");
+      const go = (sign) => prodTrack.scrollBy({ left: sign * step(), behavior: reduce ? "auto" : "smooth" });
+      prev.addEventListener("click", () => go(-1));
+      next.addEventListener("click", () => go(1));
+
+      // A looping rail has no ends, so neither arrow ever disables. Without the clones
+      // (reduced motion) the ends are real again and the arrows say so.
+      if (!looping) {
+        const sync = () => {
+          const max = prodTrack.scrollWidth - prodTrack.clientWidth;
+          prev.disabled = prodTrack.scrollLeft <= step() * 0.5;
+          next.disabled = prodTrack.scrollLeft >= max - 8;
+        };
+        prodTrack.addEventListener("scroll", sync, { passive: true });
+        window.addEventListener("resize", sync);
+        sync();
+      }
     }
   }
 

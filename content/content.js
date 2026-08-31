@@ -149,13 +149,30 @@ const SERVICES = [
 // `schemaName` is the full manufacturer product name as printed on the box. It is not
 // translated (a product name is a proper noun) and is what goes into the Product JSON-LD,
 // while the shorter per-language `names` are what the card shows.
+//
+// `video` is optional and turns the slide into a loop: it is the base name of the
+// .webm/.mp4 pair in src/video, and `poster` is the WebP first frame that holds the box
+// until play() is called. The same contract as GALLERY — main.js fetches nothing until the
+// slide is in view, and never on save-data / 2g / reduced motion. A product without
+// `video` renders its transparent cut-out exactly as before, so the rail stays composed
+// at whatever footage exists instead of waiting for all six.
+//
+// Note the two art directions this mixes: a cut-out floats on a pool of gold light, while
+// the rendered loops carry their own lit background (navy, gold sparks, tools). The rail
+// gives every slide the same dark frame so the two do not read as two different sites.
 const PRODUCTS = [
-  { key: "biowax_1", img: "biowax-1", brand: "Bio Wax", line: "The Original", schemaName: "Bio Wax №1 The Original" },
-  { key: "biowax_2", img: "biowax-2", brand: "Bio Wax", line: "The Original", schemaName: "Bio Wax №2 The Original" },
-  { key: "biowax_3", img: "biowax-3", brand: "Bio Wax", line: "The Original", schemaName: "Bio Wax №3 The Original" },
-  { key: "biowax_4", img: "biowax-4", brand: "Bio Wax", line: "The Original", schemaName: "Bio Wax №4 The Original" },
-  { key: "funkyhead", img: "crazybull-funkyhead", brand: "Crazy Bull", line: "Funky Head", size: "100 g", schemaName: "Crazy Bull Funky Head Matte Forming Paste" },
-  { key: "minotaur", img: "crazybull-minotaur", brand: "Crazy Bull", line: "Minotaur", size: "35 ml", schemaName: "Crazy Bull Minotaur Beard Oil" },
+  { key: "biowax_1", img: "biowax-1", brand: "Bio Wax", line: "The Original", schemaName: "Bio Wax №1 The Original",
+    video: "product-biowax-1", poster: "product-biowax-1-poster.webp" },
+  { key: "biowax_2", img: "biowax-2", brand: "Bio Wax", line: "The Original", schemaName: "Bio Wax №2 The Original",
+    video: "product-biowax-2", poster: "product-biowax-2-poster.webp" },
+  { key: "biowax_3", img: "biowax-3", brand: "Bio Wax", line: "The Original", schemaName: "Bio Wax №3 The Original",
+    video: "product-biowax-3", poster: "product-biowax-3-poster.webp" },
+  { key: "biowax_4", img: "biowax-4", brand: "Bio Wax", line: "The Original", schemaName: "Bio Wax №4 The Original",
+    video: "product-biowax-4", poster: "product-biowax-4-poster.webp" },
+  { key: "funkyhead", img: "crazybull-funkyhead", brand: "Crazy Bull", line: "Funky Head", size: "100 g", schemaName: "Crazy Bull Funky Head Matte Forming Paste",
+    video: "product-crazybull-funkyhead", poster: "product-crazybull-funkyhead-poster.webp" },
+  { key: "minotaur", img: "crazybull-minotaur", brand: "Crazy Bull", line: "Minotaur", size: "35 ml", schemaName: "Crazy Bull Minotaur Beard Oil",
+    video: "product-crazybull-minotaur", poster: "product-crazybull-minotaur-poster.webp" },
 ];
 
 // The Work section, one entry per cell, in render order. Everything the mockup shows in
@@ -290,6 +307,13 @@ const L = {
       // unverified, so the copy differentiates by colour and nothing else.
       noteCodes: "Οι κωδικοί Bio Wax διαφέρουν μόνο στο χρώμα — τίποτα για το κράτημα δεν δηλώνεται όσο δεν το επιβεβαιώνει ο κατασκευαστής.",
       cta: "Δες τα προϊόντα",
+      // Per-card CTA. Renders only once a real store URL exists (SITE.freshaShopUrl or a
+      // per-product `url`); until then the card keeps the honest "available in the shop" line.
+      order: "Παραγγελία",
+      // Rail controls, screen-reader only.
+      prev: "Προηγούμενο προϊόν",
+      next: "Επόμενο προϊόν",
+      rail: "Προϊόντα — κύλιση οριζόντια",
       names: {
         biowax_1: "Bio Wax №1", biowax_2: "Bio Wax №2", biowax_3: "Bio Wax №3", biowax_4: "Bio Wax №4",
         funkyhead: "Funky Head", minotaur: "Minotaur",
@@ -600,6 +624,10 @@ const L = {
       note: "Prices start at €10 per item. Sold in-shop (cash / card). Ask the barber which one suits your hair.",
       noteCodes: "The Bio Wax codes differ by colour only — nothing about hold is claimed until the manufacturer confirms it.",
       cta: "See the products",
+      order: "Order",
+      prev: "Previous product",
+      next: "Next product",
+      rail: "Products — scroll horizontally",
       names: {
         biowax_1: "Bio Wax №1", biowax_2: "Bio Wax №2", biowax_3: "Bio Wax №3", biowax_4: "Bio Wax №4",
         funkyhead: "Funky Head", minotaur: "Minotaur",

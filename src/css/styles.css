@@ -833,15 +833,46 @@ button.svc .svc__ext { display: none; }
 }
 
 /* =========================================================================
-   Products — the retail shelf. Cut-outs on pooled gold light, no basket: the
-   price is a floor and the sale happens at the chair.
+   Products — the retail shelf, now a scroll-snap rail. No basket: the price is
+   a floor and the sale happens at the chair (or, once the Fresha store exists,
+   through the per-card CTA).
+
+   Every product is a rendered loop as of 2026-08-31, so the pooled-gold treatment
+   below is now the fallback path rather than the common one: a product with no
+   `video` in PRODUCTS still renders its transparent cut-out on that pool of light.
+   Both paths share the card, the 4:5 window and the border, so a shelf that mixes
+   them reads as one shelf — the loops just drop the gold pool, which would double
+   up on light they already carry.
    ========================================================================= */
 .products { padding-block: var(--sec); }
 .prod-intro__shop { display: none; }
-.prod-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.625rem; }
+
+/* The rail bleeds to both edges but its first and last slide line up with .wrap,
+   so a half-visible card at the right edge is the affordance that says "scroll". */
+.prod-railwrap { position: relative; margin-top: 1.5rem; }
+.prod-rail {
+  display: flex;
+  gap: 0.625rem;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  scroll-padding-inline: var(--pad);
+  padding-inline: max(var(--pad), calc((100% - var(--wrap)) / 2 + var(--pad)));
+  padding-block: 0.25rem;
+  list-style: none;
+  margin: 0;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+.prod-rail::-webkit-scrollbar { display: none; }
+/* Focus lands on the rail itself, because that is what arrow keys scroll. */
+.prod-rail:focus-visible { outline: 2px solid var(--gold); outline-offset: 4px; border-radius: var(--r-card); }
+.prod-slide { flex: 0 0 76vw; max-width: 20rem; scroll-snap-align: start; display: flex; }
+
 .prod {
   display: flex;
   flex-direction: column;
+  flex: 1;
   padding: 0.875rem 0.875rem 1rem;
   border: 1px solid rgba(201, 162, 75, 0.28);
   border-radius: var(--r-card);
@@ -849,7 +880,17 @@ button.svc .svc__ext { display: none; }
   transition: border-color 0.35s var(--ease);
 }
 .prod:hover { border-color: rgba(201, 162, 75, 0.55); }
-.prod__shot { position: relative; aspect-ratio: 1; display: grid; place-items: center; padding: 8%; margin-bottom: 0.75rem; }
+
+.prod__shot {
+  position: relative;
+  aspect-ratio: 4 / 5;
+  display: grid;
+  place-items: center;
+  padding: 8%;
+  margin-bottom: 0.875rem;
+  border-radius: 10px;
+  overflow: hidden;
+}
 /* The pool of light behind the object, not a fill under it. */
 .prod__shot::before {
   content: "";
@@ -860,6 +901,27 @@ button.svc .svc__ext { display: none; }
   background: radial-gradient(circle, rgba(201, 162, 75, 0.26), transparent 68%);
 }
 .prod__shot img { position: relative; width: 100%; height: 100%; object-fit: contain; }
+
+/* A loop fills its window edge to edge. The 9:16 master is cropped to 4:5 by the
+   browser, biased upward because the tin sits above centre in the frame. */
+.prod--loop .prod__shot { padding: 0; }
+.prod--loop .prod__shot::before { display: none; }
+/* Absolute, not height:100%. The window's height comes from aspect-ratio, and a height
+   derived that way is indefinite for percentage resolution — the percentage fell back to
+   auto and the 9:16 master laid itself out at its own ratio (270x480 in a 270x338 box),
+   overflowing into the clip and taking object-position out of play with it. Pinning to
+   the padding box gives the element a definite box, so cover and the upward bias below
+   are what actually frames the tin. */
+.prod--loop .prod__shot video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center 40%;
+  display: block;
+}
+
 .prod__body { display: flex; flex-direction: column; flex: 1; }
 .prod__brand { font-size: 0.78rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--gold); margin-bottom: 0.25rem; }
 .prod__name { font: 500 1.25rem/1.1 var(--display); letter-spacing: -0.02em; color: var(--cream); }
@@ -867,25 +929,81 @@ button.svc .svc__ext { display: none; }
 .prod__desc { display: none; }
 .prod__price { margin: auto 0 0; padding-top: 0.75rem; font: 500 1.25rem var(--display); color: var(--cream); }
 .prod__from { font: 400 0.78rem var(--sans); letter-spacing: 0.12em; text-transform: uppercase; color: var(--stone-dim); margin-right: 0.375rem; }
+
+/* Per-card CTA. Ghost-gold rather than a filled button: six filled buttons in a row
+   would out-shout the one booking CTA the page is actually built around. */
+.prod__cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  align-self: flex-start;
+  margin-top: 0.875rem;
+  padding: 0.5rem 0.9rem;
+  border: 1px solid rgba(201, 162, 75, 0.5);
+  border-radius: 999px;
+  font-size: 0.82rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--gold);
+  text-decoration: none;
+  transition: background-color 0.3s var(--ease), color 0.3s var(--ease), border-color 0.3s var(--ease);
+}
+.prod__cta:hover { background: var(--gold); border-color: var(--gold); color: var(--ink); }
+.prod__cta .arr { transition: transform 0.3s var(--ease); }
+.prod__cta:hover .arr { transform: translateX(3px); }
+/* Stand-in while there is no store URL: same slot, same rhythm, no dead button. */
+.prod__stock { display: flex; align-items: center; gap: 0.5rem; margin-top: 0.875rem; font-size: 0.78rem; color: var(--stone-dim); }
+
 .prod-shopline { display: flex; align-items: center; gap: 0.5rem; margin-top: 1rem; font-size: 0.78rem; color: var(--stone-dim); }
 .prod-shopline__dot { width: 6px; height: 6px; border-radius: 50%; background: var(--gold); flex: none; }
 .prod-cta { margin-top: 1.25rem; }
+.products .sec-note { margin-top: 1.5rem; }
+
+/* Arrows are injected by main.js and exist only where a pointer can use them —
+   a touch device swipes, and two more tap targets there buy nothing. */
+.prod-nav {
+  position: absolute;
+  top: 50%;
+  z-index: 2;
+  display: none;
+  place-items: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  transform: translateY(-50%);
+  border: 1px solid rgba(201, 162, 75, 0.4);
+  border-radius: 50%;
+  background: rgba(29, 26, 20, 0.86);
+  backdrop-filter: blur(6px);
+  color: var(--gold);
+  cursor: pointer;
+  transition: background-color 0.3s var(--ease), border-color 0.3s var(--ease), opacity 0.3s var(--ease);
+}
+.prod-nav:hover { background: var(--gold); border-color: var(--gold); color: var(--ink); }
+.prod-nav:focus-visible { outline: 2px solid var(--gold); outline-offset: 3px; }
+.prod-nav[disabled] { opacity: 0; pointer-events: none; }
+.prod-nav svg { width: 1rem; height: 1rem; fill: none; stroke: currentColor; stroke-width: 2; }
+.prod-nav--prev { left: 0.75rem; }
+.prod-nav--next { right: 0.75rem; }
+@media (hover: hover) and (pointer: fine) and (min-width: 48em) {
+  .prod-nav { display: grid; }
+}
 
 @media (min-width: 60em) {
   .prod-intro__shop { display: inline; }
-  .prod-grid { grid-template-columns: repeat(3, 1fr); gap: 1rem; }
-  /* Horizontal card: the cut-out sits beside the copy, so the description has
-     somewhere to live. */
-  .prod { flex-direction: row; gap: 1.25rem; align-items: center; padding: 1.125rem; border-radius: 16px; }
-  .prod__shot { flex: 0 0 116px; height: 116px; aspect-ratio: auto; padding: 0; margin-bottom: 0; }
-  .prod__shot::before { width: 100%; }
-  .prod__body { display: block; flex: 1; min-width: 0; }
+  .prod-slide { flex: 0 0 19rem; max-width: 19rem; }
+  .prod { padding: 1rem 1rem 1.125rem; border-radius: 16px; }
+  .prod__name { font-size: 1.5rem; line-height: 1.05; }
   .prod__brand { letter-spacing: 0.12em; }
-  .prod__name { font-size: 1.625rem; line-height: 1.05; }
   .prod__meta { margin-top: 0.375rem; }
   .prod__desc { display: block; margin-top: 0.625rem; font-size: 0.875rem; line-height: 1.6; color: var(--stone); }
-  .prod__price { margin: 0.75rem 0 0; padding-top: 0; font-size: 1.5rem; }
+  .prod__price { margin: 0.875rem 0 0; padding-top: 0; font-size: 1.5rem; }
   .prod__from { margin-right: 0.5rem; }
+}
+
+/* Reduced motion never gets a moving product: main.js leaves the poster in place,
+   and the rail loses its smooth scroll with it. */
+@media (prefers-reduced-motion: reduce) {
+  .prod-rail { scroll-behavior: auto; }
 }
 
 /* =========================================================================
