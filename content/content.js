@@ -75,8 +75,12 @@ const SITE = {
   //
   // priceFrom is deliberately a floor, not a per-SKU price: a 35 ml beard oil and a
   // wax puck do not cost the same, and a hard price on the page is a promise the
-  // chair has to honour. Every product renders "from €10" until real per-SKU prices
-  // land (add `price` to a PRODUCTS entry and build.js will show it instead).
+  // chair has to honour. A product renders "from €10" only until its real price is
+  // confirmed; set `price` on the PRODUCTS entry and build.js states that figure
+  // exactly, in the card, the JSON-LD offer and llms.txt alike.
+  //
+  // Confirmed so far: both Crazy Bull items at €15 (owner, 2026-08-31). The four
+  // Bio Wax codes are still on the floor.
   priceFrom: 10,
   // Fresha product/retail link — empty until the owner supplies it. While empty each
   // card renders the "available in the shop" line; the moment this is filled in,
@@ -170,9 +174,9 @@ const PRODUCTS = [
   { key: "biowax_4", img: "biowax-4", brand: "Bio Wax", line: "The Original", schemaName: "Bio Wax №4 The Original",
     video: "product-biowax-4", poster: "product-biowax-4-poster.webp" },
   { key: "funkyhead", img: "crazybull-funkyhead", brand: "Crazy Bull", line: "Funky Head", size: "100 g", schemaName: "Crazy Bull Funky Head Matte Forming Paste",
-    video: "product-crazybull-funkyhead", poster: "product-crazybull-funkyhead-poster.webp" },
+    video: "product-crazybull-funkyhead", poster: "product-crazybull-funkyhead-poster.webp", price: 15 },
   { key: "minotaur", img: "crazybull-minotaur", brand: "Crazy Bull", line: "Minotaur", size: "35 ml", schemaName: "Crazy Bull Minotaur Beard Oil",
-    video: "product-crazybull-minotaur", poster: "product-crazybull-minotaur-poster.webp" },
+    video: "product-crazybull-minotaur", poster: "product-crazybull-minotaur-poster.webp", price: 15 },
 ];
 
 // The Work section, one entry per cell, in render order. Everything the mockup shows in

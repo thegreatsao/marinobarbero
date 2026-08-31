@@ -1194,7 +1194,11 @@ function llmsTxt() {
   const services = SERVICES.map((sv) => `- ${t.services.names[sv.key]} — €${sv.price} (${sv.dur} min)`).join("\n");
   const products = PRODUCTS.map((pr) => {
     const variant = t.products.variants[pr.key] ? `, ${t.products.variants[pr.key]}` : "";
-    return `- ${pr.schemaName} — ${t.products.types[pr.key]}${variant}, from €${SITE.priceFrom}`;
+    // Through productPrice/productIsFrom, not SITE.priceFrom: this line used to print
+    // "from €10" for every product including ones with a confirmed price, which is exactly
+    // the drift the comment above promises cannot happen.
+    const money = `${productIsFrom(pr) ? "from " : ""}€${productPrice(pr)}`;
+    return `- ${pr.schemaName} — ${t.products.types[pr.key]}${variant}, ${money}`;
   }).join("\n");
   const hours = t.visit.hours.map((h) => `- ${h[0]}: ${h[1]}`).join("\n");
   const today = new Date().toISOString().slice(0, 10);
@@ -1231,8 +1235,9 @@ Prices are the in-shop price list in euro. Cash and card accepted.
 ## Products stocked in the shop
 ${products}
 
-Retail only, in person. "From €${SITE.priceFrom}" is a floor across the range, not a per-item price —
-ask in the chair which code suits your hair.
+Retail only, in person. A price given as "from €${SITE.priceFrom}" is a floor for items whose
+per-unit price is not confirmed yet, not the price of that item; a bare figure is exact.
+Ask in the chair which code suits your hair.
 
 ## Booking
 - [Book online](${SITE.freshaUrl}): live availability, handled by Fresha
