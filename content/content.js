@@ -134,7 +134,7 @@ const HOURS = [
 const SERVICES = [
   { key: "haircut", cat: "cut", price: 18, dur: 30 },
   { key: "fade", cat: "cut", price: 18, dur: 30, hero: true },
-  { key: "beard", cat: "beard", price: 7, dur: 10 },
+  { key: "beard", cat: "beard", price: 8, dur: 10 },
   { key: "wash", cat: "beard", price: 10, dur: 20 },
   { key: "massage", cat: "treatment", price: 20, dur: 15 },
   { key: "scalp", cat: "treatment", price: 20, dur: 30 },
@@ -415,7 +415,7 @@ const L = {
         },
         {
           q: "Πόσο κοστίζει και πώς πληρώνω;",
-          a: "Κούρεμα και fade €18, γένια €7 — ο πλήρης τιμοκατάλογος είναι πιο πάνω. Δεχόμαστε μετρητά και κάρτα στο κατάστημα.",
+          a: "Κούρεμα και fade €18, γένια €8 — ο πλήρης τιμοκατάλογος είναι πιο πάνω. Δεχόμαστε μετρητά και κάρτα στο κατάστημα.",
         },
         {
           q: "Πουλάτε τα προϊόντα που δουλεύετε;",
@@ -719,7 +719,7 @@ const L = {
         },
         {
           q: "What does it cost and how do I pay?",
-          a: "Haircut and fade €18, beard €7 — the full price list is above. Cash and card accepted in the shop.",
+          a: "Haircut and fade €18, beard €8 — the full price list is above. Cash and card accepted in the shop.",
         },
         {
           q: "Do you sell the products you use?",
