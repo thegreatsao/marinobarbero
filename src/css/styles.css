@@ -766,7 +766,25 @@ button.svc .svc__ext { display: none; }
 }
 .about h2 { margin: 0.625rem 0 1rem; font-size: clamp(1.875rem, 7.7vw, 3.5rem); line-height: 1.04; }
 .about__media { border-radius: var(--r-card); overflow: hidden; margin-bottom: 1.125rem; }
-.about__media img { width: 100%; height: 100%; object-fit: cover; aspect-ratio: 3 / 4; filter: grayscale(1) sepia(0.42) saturate(1.6) hue-rotate(-8deg) brightness(1); }
+.about__media img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  aspect-ratio: 3 / 4;
+  filter: grayscale(1) sepia(0.42) saturate(1.6) hue-rotate(-8deg) brightness(1);
+  transition: filter 0.45s var(--ease);
+}
+/* Hover lifts the grade off and shows the photograph as it was shot. Guarded by
+   (hover: hover): on a touch screen there is no hover, and a :hover rule there
+   either never fires or sticks after a tap, which would leave one photograph
+   ungraded for the rest of the visit. Reduced motion still gets the swap — it is
+   the transition that is motion, not the result. */
+@media (hover: hover) and (pointer: fine) {
+  .about__media:hover img { filter: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .about__media img { transition: none; }
+}
 .about__body p { color: var(--stone); font-size: 0.96875rem; }
 .about__body p + p { margin-top: 0.75rem; }
 .about__quote {
@@ -1046,20 +1064,36 @@ button.svc .svc__ext { display: none; }
    ========================================================================= */
 .faq { padding-block: var(--sec); }
 .faq__item { border: 1px solid var(--line); border-radius: 12px; background: var(--ink-2); margin-bottom: 0.5rem; }
+/* The gap under the question is the padding and nothing else.
+   It used to be the padding PLUS whatever min-height left over: at 56px a
+   one-line question does not fill the box, so align-items:center split the
+   slack above and below it and the answer sat ~24px down, while a two-line
+   question overflowed the minimum and left only the 12px padding. The gap
+   swung by 2x from card to card, which is what read as broken spacing.
+   The padding below now hits 56px on its own (17 + 22 + 17), so min-height is
+   a floor for the tap target rather than a source of spacing. */
 .faq__item summary {
   list-style: none;
   cursor: pointer;
   min-height: 56px;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 0.875rem;
-  padding: 0.75rem 0.875rem;
+  padding: 1.0625rem 0.875rem;
   font: 500 1.0625rem/1.3 var(--display);
   color: var(--cream);
 }
 .faq__item summary::-webkit-details-marker { display: none; }
-.faq__item summary::after { content: "+"; color: var(--gold); transition: transform 0.3s var(--ease); }
+/* line-height is inherited so the glyph box is exactly one line tall, and
+   flex-start then pins it to the first line of a question that wraps. */
+.faq__item summary::after {
+  content: "+";
+  flex: none;
+  line-height: inherit;
+  color: var(--gold);
+  transition: transform 0.3s var(--ease);
+}
 .faq__item[open] summary::after { transform: rotate(45deg); }
 .faq__item summary:hover { color: var(--gold-soft); }
 .faq__item p { margin: 0; padding: 0 0.875rem 0.875rem; color: var(--stone); font-size: 0.9375rem; }
@@ -1067,7 +1101,7 @@ button.svc .svc__ext { display: none; }
   .faq__grid { display: grid; grid-template-columns: 0.9fr 1.1fr; gap: 3rem; align-items: start; }
   .faq__head h2 { margin-top: 0.75rem; max-width: 18ch; font-size: clamp(2.5rem, 3.8vw, 3.375rem); line-height: 1; letter-spacing: -0.04em; }
   .faq__item { border-radius: var(--r-card); margin-bottom: 0.625rem; }
-  .faq__item summary { min-height: 60px; padding: 0.875rem 1.125rem; font-size: 1.3125rem; }
+  .faq__item summary { min-height: 60px; padding: 1rem 1.125rem; font-size: 1.3125rem; }
   .faq__item p { padding: 0 1.125rem 1rem; font-size: 1rem; line-height: 1.65; }
 }
 

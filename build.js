@@ -1245,6 +1245,22 @@ Last updated: ${today}
 `;
 }
 
+// Redirects have to be emitted INTO dist/, not written in netlify.toml.
+//
+// The site is deployed to Netlify by hand, as a zip of dist/. On a manual deploy Netlify
+// honours redirect and header instructions only from files inside the deployed folder.
+// _headers proves it: build.js writes it into dist/, it travels in the zip, and its CSP is
+// live. netlify.toml sits beside dist/ and has never been inside the archive — not in the
+// 2026-08-28 one either — so the /en/ rules written there have never reached production,
+// and /en/ has been returning 404 while holding 96% of the site's impressions.
+//
+// Only the splat rule is emitted. /en/ -> /, /en/privacy/ -> /privacy/: the tail is carried
+// across rather than collapsing every old English URL onto the root, which would lose
+// /en/privacy/ its page. A bare "/en" (no trailing slash) is deliberately NOT handled here
+// — see the warning below — and is worth little: every one of the 1,968 impressions in
+// Search Console is on the slashed form.
+const redirectsFile = () => "/en/*  /:splat  301\n";
+
 // DO NOT add a "/en -> /en/" rule to a _redirects file here. It was tried and it took the
 // site down with ERR_TOO_MANY_REDIRECTS.
 //
@@ -1449,6 +1465,7 @@ function build() {
   write(path.join(DIST, "robots.txt"), robots);
   write(path.join(DIST, "llms.txt"), llmsTxt());
   write(path.join(DIST, "_headers"), headersFile());
+  write(path.join(DIST, "_redirects"), redirectsFile());
 
   console.log("✓ Built dist/ for languages:", SITE.langs.join(", "));
 }
